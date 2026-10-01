@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { get, put } from "@vercel/blob";
@@ -72,7 +73,8 @@ const fileStorage: Storage = {
   async write(key, data) {
     const file = fileFor(key);
     await mkdir(path.dirname(file), { recursive: true });
-    const temp = `${file}.${process.pid}.tmp`;
+    // A unique temp name per write, so simultaneous saves of one file can't collide.
+    const temp = `${file}.${randomUUID()}.tmp`;
     await writeFile(temp, JSON.stringify(data));
     await rename(temp, file);
   },

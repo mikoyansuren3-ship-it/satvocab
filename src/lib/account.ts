@@ -338,6 +338,10 @@ export async function signIn(username: string, pin: string): Promise<string | nu
 }
 
 export async function signOut() {
+  // Record any unfinished study session first, so the final save includes it.
+  clearSession();
+  // Let a save that's already on its way finish, then send whatever is left.
+  for (let waited = 0; saving && waited < 5000; waited += 50) await new Promise((r) => setTimeout(r, 50));
   if (account.user && pulled && isDirty(account.user.id)) await save();
   await post("/api/auth/logout", {});
   becomeGuest();
