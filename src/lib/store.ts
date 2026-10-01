@@ -49,6 +49,32 @@ export const DEFAULT_STATE: AppState = {
 let state: AppState = DEFAULT_STATE;
 let loaded = false;
 const listeners = new Set<() => void>();
+const changeListeners = new Set<(s: AppState) => void>();
+
+/**
+ * Whose progress is showing: "guest" (this browser only) or a signed-in user's
+ * id. Each owner has its own localStorage copy; signed-in copies also sync to
+ * the server (see account.ts).
+ */
+let owner = "guest";
+let ownerResolved = false;
+const keyFor = (o: string) => (o === "guest" ? KEY : `${KEY}:user:${o}`);
+
+/** The account last signed in on this browser: {id, username}. Written by account.ts. */
+export const LAST_USER_KEY = `${KEY}:last-user`;
+
+/** Starts with the last signed-in user's copy so returning users don't see guest progress flash by. */
+function resolveOwner() {
+  if (ownerResolved) return;
+  ownerResolved = true;
+  try {
+    const raw = window.localStorage.getItem(LAST_USER_KEY);
+    const user: unknown = raw ? JSON.parse(raw) : null;
+    if (isObject(user) && typeof user.id === "string") owner = user.id;
+  } catch {
+    // Unreadable: stay on the guest copy.
+  }
+}
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const num = (v: unknown, fallback = 0) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
@@ -56,7 +82,7 @@ const pick = <T>(values: readonly T[], input: unknown): T[] =>
   Array.isArray(input) ? values.filter((v) => input.includes(v)) : [];
 
 /** Coerces anything read from storage (or an imported file) into a valid state. */
-function sanitize(input: unknown): AppState {
+export function sanitize(input: unknown): AppState {
   if (!isObject(input)) return DEFAULT_STATE;
 
   const progress: Record<string, WordProgress> = {};
@@ -129,9 +155,10 @@ function sanitize(input: unknown): AppState {
 
 function load() {
   if (loaded || typeof window === "undefined") return;
+  resolveOwner();
   loaded = true;
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(keyFor(owner));
     if (raw) state = sanitize(JSON.parse(raw));
   } catch {
     // Storage unavailable (private mode, blocked cookies): keep in-memory state.
@@ -140,7 +167,7 @@ function load() {
 
 function persist() {
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(state));
+    window.localStorage.setItem(keyFor(owner), JSON.stringify(state));
   } catch {
     // Ignore quota or availability errors; progress stays in memory this visit.
   }
@@ -151,7 +178,7 @@ function emit() {
 }
 
 function onStorage(e: StorageEvent) {
-  if (e.key !== KEY) return;
+  if (e.key !== keyFor(owner)) return;
   try {
     state = e.newValue ? sanitize(JSON.parse(e.newValue)) : DEFAULT_STATE;
   } catch {
@@ -181,6 +208,44 @@ function update(fn: (s: AppState) => AppState) {
   state = fn(state);
   persist();
   emit();
+  for (const listener of changeListeners) listener(state);
+}
+
+// ---- owners (guest vs. signed-in users) -------------------------------------
+
+export function getState(): AppState {
+  load();
+  return state;
+}
+
+export function getOwner(): string {
+  load();
+  return owner;
+}
+
+/** Shows another owner's progress, starting from its copy saved in this browser. */
+export function switchOwner(next: string) {
+  ownerResolved = true;
+  if (next === owner && loaded) return;
+  owner = next;
+  loaded = false;
+  state = DEFAULT_STATE;
+  load();
+  emit();
+}
+
+/** Replaces the current owner's state without counting it as a local change (e.g. data from the server). */
+export function replaceState(next: AppState) {
+  load();
+  state = next;
+  persist();
+  emit();
+}
+
+/** Called after every change made in this tab (not for replaceState or other tabs). */
+export function onLocalChange(listener: (s: AppState) => void) {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
 }
 
 export function useAppState(): AppState {

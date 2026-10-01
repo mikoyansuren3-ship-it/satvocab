@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Download, Table2, Trash2, Upload } from "lucide-react";
+import { useAccount } from "@/lib/account";
 import { cn } from "@/lib/cn";
 import { DEFAULT_FILTERS, type Filters } from "@/lib/filters";
 import { fmt } from "@/lib/format";
@@ -167,8 +169,8 @@ export function ProgressView() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Breakdown
-          title="By difficulty"
-          firstColumn="Difficulty"
+          title="By frequency"
+          firstColumn="Frequency"
           rows={byTier}
           onSelect={(key) => showWords({ tiers: [key as Tier] })}
           selectHint="Show these words"
@@ -190,7 +192,7 @@ export function ProgressView() {
         selectHint="Show this word bank"
         columns
         controls={
-          <div role="radiogroup" aria-label="Difficulty" onKeyDown={onRadioGroupKeyDown} className="inline-flex rounded-full bg-surface-2 p-1">
+          <div role="radiogroup" aria-label="Frequency" onKeyDown={onRadioGroupKeyDown} className="inline-flex rounded-full bg-surface-2 p-1">
             {TIERS.map((t) => {
               const selected = bankTier === t;
               return (
@@ -436,6 +438,7 @@ function Breakdown({
 }
 
 function DataControls() {
+  const { status, user } = useAccount();
   const fileRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
 
@@ -475,7 +478,24 @@ function DataControls() {
       <h2 id="data-title" className="font-bold">
         Your data
       </h2>
-      <p className="mt-1 text-[15px] text-muted">Progress is saved in this browser only. Export a file to back it up or move it to another device.</p>
+      <p className="mt-1 text-[15px] text-muted">
+        {status === "user" && user ? (
+          <>
+            Signed in as <strong className="text-ink">{user.username}</strong>: your progress is saved to your account and follows you to any
+            device. You can also export a backup file.
+          </>
+        ) : status === "guest" ? (
+          <>
+            You’re studying as a guest, so progress is saved in this browser only.{" "}
+            <Link href="/login" className="font-semibold text-brand-text underline underline-offset-2">
+              Create an account
+            </Link>{" "}
+            to keep it on every device, or export a file to back it up.
+          </>
+        ) : (
+          "Progress is saved in this browser only. Export a file to back it up or move it to another device."
+        )}
+      </p>
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"

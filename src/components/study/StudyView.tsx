@@ -217,7 +217,7 @@ export function StudyView() {
 
           <div className="mt-6">
             <Segmented
-              label="Difficulty"
+              label="Frequency"
               value={tierValue}
               options={[
                 { value: "all", label: "All" },

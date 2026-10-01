@@ -211,7 +211,7 @@ const posLabel = (v: string) => POS_OPTIONS.find((o) => o.value === v)?.label ??
 
 export const summarize = {
   mastery: (f: Filters) => listSummary(f.mastery, "All words", "selected", (v) => LEVEL_LABEL[v as Level]),
-  tiers: (f: Filters) => listSummary(sortTiers(f.tiers), "All levels", "levels", (v) => TIER_INFO[v as Tier].label),
+  tiers: (f: Filters) => listSummary(sortTiers(f.tiers), "All frequencies", "selected", (v) => TIER_INFO[v as Tier].label),
   lessons: (f: Filters) => listSummary(sortLessons(f.lessons), "All banks", "banks", bankLabel),
   categories: (f: Filters) => listSummary(f.categories, "All categories", "categories"),
   pos: (f: Filters) => listSummary(f.pos, "All", "selected", posLabel),

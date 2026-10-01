@@ -91,7 +91,7 @@ function sample(pool: Word[] | undefined, target: Word, chosen: Word[], count: n
 
 function pickDistractors(target: Word, count: number): Word[] {
   const chosen: Word[] = [];
-  // Same part of speech (and difficulty, when possible) keeps wrong answers plausible.
+  // Same part of speech (and frequency level, when possible) keeps wrong answers plausible.
   sample(buckets.get(`${target.pos}|${target.tier}`), target, chosen, count);
   sample(buckets.get(target.pos), target, chosen, count);
   sample(WORDS, target, chosen, count);

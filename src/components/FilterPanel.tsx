@@ -80,8 +80,8 @@ export function FilterPanel({ onDone, doneLabel = "Done" }: { onDone?: () => voi
         </OptionGroup>
       </Section>
 
-      <Section label="Difficulty" summary={summarize.tiers(f)}>
-        <OptionGroup label="Difficulty">
+      <Section label="Frequency" summary={summarize.tiers(f)}>
+        <OptionGroup label="Frequency">
           {TIERS.map((tier) => (
             <Option
               key={tier}

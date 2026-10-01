@@ -1,8 +1,8 @@
 # SAT Vocab
 
-A study site for the [sesamewords](https://sites.google.com/site/sesamewords/home) SAT vocabulary lists: **3,661 words** in three difficulty levels, with flashcards, two kinds of multiple-choice quiz, and a searchable, filterable word list that tracks how well you know each word.
+A study site for the [sesamewords](https://sites.google.com/site/sesamewords/home) SAT vocabulary lists: **3,661 words** in three frequency levels, with flashcards, two kinds of multiple-choice quiz, and a searchable, filterable word list that tracks how well you know each word.
 
-| Difficulty | Words | Word banks |
+| Frequency | Words | Word banks |
 | --- | ---: | --- |
 | Top frequency | 449 | Lessons 1.1–1.15 |
 | Mid frequency | 1,349 | Lessons 2.1–2.45 |
@@ -14,11 +14,22 @@ The source pages list 4,491 entries. The Low list repeats 828 Top and Mid words,
 
 - **Flashcards**: flip each card, then mark it "Got it" or "Still learning". You can show the word or the definition on the front.
 - **Quizzes**: *word → definition* (one word, four definitions), *definition → word* (one definition, four words), or both mixed together. Wrong answers are drawn from words with the same part of speech so they stay plausible.
-- **All words**: search words and definitions; filter by mastery, difficulty, word bank, category, part of speech and saved words; sort by weakest first, lesson order, A to Z, most missed or recently studied. "Study these" opens a study session set to the current filters.
-- **Progress**: mastery overall and by difficulty, word bank and category, day streak, accuracy, most-missed words, recent sessions, and export, import or reset of your progress.
+- **All words**: search words and definitions; filter by mastery, frequency, word bank, category, part of speech and saved words; sort by weakest first, lesson order, A to Z, most missed or recently studied. "Study these" opens a study session set to the current filters.
+- **Progress**: mastery overall and by frequency, word bank and category, day streak, accuracy, most-missed words, recent sessions, and export, import or reset of your progress.
 - **Mastery**: each right answer moves a word up one step and each miss moves it down two. Learning is 0 to 1 steps, Almost there is 2 to 3, and Mastered is 4 or more.
 
-Progress, saved words and filters are stored in the browser (`localStorage`). There are no accounts and no server.
+## Accounts
+
+Anyone can study as a guest; progress then stays in that browser. Creating an account (username and password, no email) saves progress to the server, so it follows the user to any device and each person on a shared computer keeps their own. When you sign up, progress you made as a guest can carry over.
+
+- Passwords are hashed with scrypt (Node's built-in `crypto`). Sessions are a signed, HTTP-only cookie that lasts 60 days.
+- Accounts and progress are stored as small private JSON files in **Vercel Blob**: `users/<username>.json` and `progress/<user-id>.json`. No other database or service is needed.
+- In `next dev` without Blob credentials, the same data goes to a git-ignored `.data/` folder, so accounts work locally.
+- If the deployed site has no Blob store connected, it runs in guest-only mode.
+
+**Setup on Vercel (once):** open the project → **Storage** → **Create** → **Blob**, choose **Private**, and connect it to this project for all environments. Then redeploy (or push a commit). Optionally add an `AUTH_SECRET` environment variable of 32+ random characters; otherwise a secret is generated and kept in the Blob store.
+
+There's no password reset, because accounts have no email address.
 
 ## Data
 
@@ -35,4 +46,4 @@ npm run lint
 npm run build
 ```
 
-Built with Next.js 16 (App Router), React 19, Tailwind CSS v4 and lucide-react. Every page is prerendered as static content, so it deploys to Vercel with no configuration.
+Built with Next.js 16 (App Router), React 19, Tailwind CSS v4, lucide-react and `@vercel/blob`. Pages are prerendered as static content; the account and progress API lives in `src/app/api/` with its helpers in `src/server/`.
