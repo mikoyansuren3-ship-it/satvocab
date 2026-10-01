@@ -35,7 +35,7 @@ export function LoginView() {
   const [keepProgress, setKeepProgress] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const ids = { user: useId(), hint: useId(), error: useId() };
+  const ids = { user: useId(), error: useId() };
   const signedIn = status === "user" && Boolean(user) && sync !== "expired";
 
   // Already signed in (or just signed in): continue to the page that was asked for.
@@ -131,13 +131,10 @@ export function LoginView() {
               autoFocus
               required
               maxLength={24}
-              aria-describedby={`${ids.hint}${error ? ` ${ids.error}` : ""}`}
+              aria-describedby={error ? ids.error : undefined}
               aria-invalid={Boolean(error)}
               className="mt-1.5 w-full rounded-xl border border-line bg-surface px-4 py-3 text-[16px] focus:border-focus focus:outline-none"
             />
-            <p id={ids.hint} className="mt-1.5 text-sm text-muted">
-              {USERNAME_RULE}. Not case-sensitive.
-            </p>
           </div>
           <ErrorText id={ids.error} error={error} />
           <button
