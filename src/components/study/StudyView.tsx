@@ -366,7 +366,7 @@ export function StudyView() {
           <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6">
             <h2 className="font-bold">Tips</h2>
             <ul className="mt-2 list-disc space-y-1.5 pl-5 text-[15px] text-muted">
-              <li>Start with Top frequency: those words show up on the SAT most often.</li>
+              <li>Start with High frequency: those words show up on the SAT most often.</li>
               <li>“Weakest first” puts the words you’ve missed ahead of new ones.</li>
               <li>Pick a word bank to work through one lesson at a time.</li>
               <li>

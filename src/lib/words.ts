@@ -25,7 +25,7 @@ export interface Word {
   tier: Tier;
   /** Word bank: "1.4" is Lesson 1.4 (Top), "2.10" Lesson 2.10 (Mid), "3.7" Set 3.7 (Low). */
   lesson: string;
-  /** Position in study order (Top lessons, then Mid, then Low sets). */
+  /** Position in study order (High lessons, then Mid, then Low sets). */
   order: number;
   synonym: string;
   definition: string;
@@ -83,7 +83,7 @@ const range = (tier: Tier) => {
 };
 
 export const TIER_INFO: Record<Tier, { label: string; short: string; banks: string; blurb: string }> = {
-  top: { label: "Top frequency", short: "Top", banks: range("top"), blurb: "The most common SAT words" },
+  top: { label: "High frequency", short: "High", banks: range("top"), blurb: "The most common SAT words" },
   mid: { label: "Mid frequency", short: "Mid", banks: range("mid"), blurb: "Common academic words" },
   low: { label: "Low frequency", short: "Low", banks: range("low"), blurb: "Rarer, harder words" },
 };

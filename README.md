@@ -4,11 +4,11 @@ A study site for the [sesamewords](https://sites.google.com/site/sesamewords/hom
 
 | Frequency | Words | Word banks |
 | --- | ---: | --- |
-| Top frequency | 449 | Lessons 1.1–1.15 |
+| High frequency | 449 | Lessons 1.1–1.15 |
 | Mid frequency | 1,349 | Lessons 2.1–2.45 |
 | Low frequency | 1,863 | Sets 3.1–3.62 |
 
-The source pages list 4,491 entries. The Low list repeats 828 Top and Mid words, and two words appear twice, so each word is kept once, at its most frequent level. The Low list isn't split into lessons on the source site, so its words are grouped into sets of about 30 in the site's order of difficulty.
+The source pages list 4,491 entries. The Low list repeats 828 High and Mid words, and two words appear twice, so each word is kept once, at its most frequent level. The Low list isn't split into lessons on the source site, so its words are grouped into sets of about 30 in the site's order of difficulty.
 
 ## Features
 

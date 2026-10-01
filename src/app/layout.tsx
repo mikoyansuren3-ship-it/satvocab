@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     template: "%s · SAT Vocab",
   },
   description:
-    "Study 3,661 SAT words in three frequency levels (top, mid and low) with flashcards, two kinds of multiple-choice quiz, and a filterable word list that tracks your mastery.",
+    "Study 3,661 SAT words in three frequency levels (high, mid and low) with flashcards, two kinds of multiple-choice quiz, and a filterable word list that tracks your mastery.",
 };
 
 export const viewport: Viewport = {
