@@ -20,18 +20,19 @@ The source pages list 4,491 entries. The Low list repeats 828 High and Mid words
 
 ## Accounts
 
-The site requires an account: signed-out visitors are sent to the sign-in page (`/login`), and return to the page they asked for after signing in. Accounts are a username and password, with no email. Progress is saved to the server, so it follows each person to any device, and people sharing a computer each keep their own. Progress made on a device before signing up can carry over to the new account.
+The site requires an account: signed-out visitors are sent to the sign-in page (`/login`), and return to the page they asked for after signing in. Signing in is step by step: enter a username, then a 6-digit PIN. If the username is new, you choose a PIN, type it twice, and the account is created. There's no email. Progress is saved to the server, so it follows each person to any device, and people sharing a computer each keep their own. Progress made on a device before signing up can carry over to the new account.
 
 - `src/proxy.ts` redirects requests without a session cookie to `/login` before any page is served. The browser also checks the session and redirects if it's invalid or expired.
 
-- Passwords are hashed with scrypt (Node's built-in `crypto`). Sessions are a signed, HTTP-only cookie that lasts 60 days.
-- Accounts and progress are stored as small private JSON files in **Vercel Blob**: `users/<username>.json` and `progress/<user-id>.json`. No other database or service is needed.
+- PINs are hashed with scrypt (Node's built-in `crypto`). Sessions are a signed, HTTP-only cookie that lasts 60 days.
+- Five wrong PINs lock that username for 15 minutes. Failed tries are counted in storage, not in server memory, so the limit holds across server instances.
+- Accounts and progress are stored as small private JSON files in **Vercel Blob**: `users/<username>.json`, `progress/<user-id>.json` and `attempts/<username>.json`. No other database or service is needed.
 - In `next dev` without Blob credentials, the same data goes to a git-ignored `.data/` folder, so accounts work locally.
 - If the deployed site has no Blob store connected, accounts are off and the site works without signing in, saving progress in each browser.
 
 **Setup on Vercel (once):** open the project → **Storage** → **Create** → **Blob**, choose **Private**, and connect it to this project for all environments. Then redeploy (or push a commit). Optionally add an `AUTH_SECRET` environment variable of 32+ random characters; otherwise a secret is generated and kept in the Blob store.
 
-There's no password reset, because accounts have no email address.
+There's no PIN reset, because accounts have no email address.
 
 ## Data
 

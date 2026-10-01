@@ -300,16 +300,38 @@ export function guestHasProgress(): boolean {
   return Object.keys(s.progress).length > 0 || Object.keys(s.saved).length > 0;
 }
 
-export async function signUp(username: string, password: string, keepGuestProgress: boolean): Promise<string | null> {
+export interface UsernameCheck {
+  username: string;
+  exists: boolean;
+  lockedForMs: number;
+}
+
+/** Step 1 of signing in: finds out whether the username already has an account. */
+export async function checkUsername(username: string): Promise<UsernameCheck | { error: string }> {
+  try {
+    const res = await fetch("/api/auth/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+    const data = (await res.json().catch(() => ({}))) as Partial<UsernameCheck> & { error?: string };
+    if (!res.ok || typeof data.exists !== "boolean") return { error: data.error ?? "Something went wrong. Try again." };
+    return data as UsernameCheck;
+  } catch {
+    return { error: "Couldn't reach the server. Check your connection and try again." };
+  }
+}
+
+export async function signUp(username: string, pin: string, keepGuestProgress: boolean): Promise<string | null> {
   const guest = keepGuestProgress && guestHasProgress() ? getState() : undefined;
-  const result = await post("/api/auth/signup", { username, password, progress: guest });
+  const result = await post("/api/auth/signup", { username, pin, progress: guest });
   if (!result.user) return result.error ?? "Couldn't create the account. Try again.";
   activate(result.user, guest);
   return null;
 }
 
-export async function signIn(username: string, password: string): Promise<string | null> {
-  const result = await post("/api/auth/login", { username, password });
+export async function signIn(username: string, pin: string): Promise<string | null> {
+  const result = await post("/api/auth/login", { username, pin });
   if (!result.user) return result.error ?? "Couldn't sign in. Try again.";
   activate(result.user);
   return null;
