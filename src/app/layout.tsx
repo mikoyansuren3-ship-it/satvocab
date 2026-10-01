@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { AppHeader } from "@/components/AppHeader";
+import { AuthGate } from "@/components/account/AuthGate";
 import "./globals.css";
 
 const inter = Inter({
@@ -30,7 +31,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full font-sans">
         <div className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
           <AppHeader />
-          <main>{children}</main>
+          <main>
+            <AuthGate>{children}</AuthGate>
+          </main>
         </div>
       </body>
     </html>

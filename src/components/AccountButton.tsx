@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronDown, CloudOff, LogIn, LogOut, RefreshCw, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { signOut, useAccount, type SyncStatus } from "@/lib/account";
@@ -36,6 +37,8 @@ export function syncText(sync: SyncStatus) {
 
 export function AccountButton() {
   const { status, user, sync } = useAccount();
+  const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -60,7 +63,7 @@ export function AccountButton() {
     };
   }, [open]);
 
-  if (status === "unavailable") return null;
+  if (status === "unavailable" || (pathname === "/login" && status !== "user")) return null;
   if (status === "loading") return <span className="block h-10 w-24 rounded-full bg-surface-2" aria-hidden />;
   if (status === "guest" || !user) {
     return (
@@ -128,6 +131,7 @@ export function AccountButton() {
               await signOut();
               setBusy(false);
               setOpen(false);
+              router.replace("/login");
             }}
             className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-[15px] font-semibold hover:bg-surface-2 disabled:opacity-60"
           >

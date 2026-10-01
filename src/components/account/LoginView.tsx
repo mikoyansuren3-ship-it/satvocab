@@ -1,17 +1,21 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, LogOut } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { signIn, signOut, signUp, useAccount } from "@/lib/account";
+import { signIn, signUp, useAccount } from "@/lib/account";
 import { fmt } from "@/lib/format";
+import { safeNextPath } from "@/lib/next-path";
 import { useAppState } from "@/lib/store";
+import { WORDS } from "@/lib/words";
 import { PASSWORD_MIN, USERNAME_RULE, normalizeUsername, passwordProblem } from "@/lib/username";
-import { SyncIcon, syncText } from "../AccountButton";
 
 type Mode = "signin" | "signup";
+
+/** The page to return to, from ?next= (read when needed, so the page can stay static). */
+const nextPath = () => safeNextPath(new URLSearchParams(window.location.search).get("next"));
 
 export function LoginView() {
   const { status, user, sync } = useAccount();
@@ -26,6 +30,13 @@ export function LoginView() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const ids = { user: useId(), pass: useId(), confirm: useId(), hint: useId(), error: useId() };
+
+  const signedIn = status === "user" && Boolean(user) && sync !== "expired";
+
+  // Already signed in (or just signed in): continue to the page that was asked for.
+  useEffect(() => {
+    if (signedIn) router.replace(nextPath());
+  }, [signedIn, router]);
 
   const guestStudied = status === "guest" ? Object.keys(state.progress).length : 0;
   const guestSaved = status === "guest" ? Object.keys(state.saved).length : 0;
@@ -44,26 +55,10 @@ export function LoginView() {
     );
   }
 
-  if (status === "user" && user && sync !== "expired") {
+  if (signedIn) {
     return (
-      <Card title={`You're signed in as ${user.username}`}>
-        <p className="flex items-center gap-2 text-muted">
-          <SyncIcon sync={sync} />
-          {syncText(sync)}
-        </p>
-        <div className="mt-6 flex flex-wrap gap-2">
-          <Link href="/" className="rounded-full bg-brand px-5 py-2.5 font-semibold text-white hover:bg-brand-hover">
-            Go study
-          </Link>
-          <button
-            type="button"
-            onClick={() => void signOut()}
-            className="inline-flex items-center gap-2 rounded-full border border-line px-5 py-2.5 font-semibold hover:bg-surface-2"
-          >
-            <LogOut className="size-4" aria-hidden />
-            Sign out
-          </button>
-        </div>
+      <Card title={`Welcome back, ${user?.username}`}>
+        <p className="text-muted">Taking you to your words…</p>
       </Card>
     );
   }
@@ -90,15 +85,14 @@ export function LoginView() {
     const failure = creating ? await signUp(name, password, keepProgress) : await signIn(name, password);
     setBusy(false);
     if (failure) return setError(failure);
-    router.push("/");
+    router.replace(nextPath());
   };
 
   return (
     <Card title={creating ? "Create an account" : "Sign in"}>
       <p className="text-muted">
-        {creating
-          ? "Your progress will be saved to your account, so it follows you to any device."
-          : "Sign in to pick up your progress on any device."}
+        Study {fmt(WORDS.length)} SAT words with flashcards and quizzes.{" "}
+        {creating ? "Your progress is saved to your account, so it follows you to any device." : "Sign in to pick up where you left off."}
       </p>
 
       <div className="mt-5 grid grid-cols-2 rounded-full bg-surface-2 p-1" role="group" aria-label="Choose">
@@ -219,9 +213,22 @@ export function LoginView() {
       </form>
 
       <p className="mt-5 text-sm text-muted">
-        {creating
-          ? "There’s no email on these accounts, so a forgotten password can’t be reset. Pick one you’ll remember."
-          : "Studying without an account still works; progress then stays in this browser."}
+        {creating ? (
+          <>
+            There’s no email on these accounts, so a forgotten password can’t be reset. Pick one you’ll remember.{" "}
+            <button type="button" onClick={() => switchMode("signin")} className="font-semibold text-brand-text underline underline-offset-2">
+              Already have an account?
+            </button>
+          </>
+        ) : (
+          <>
+            New here?{" "}
+            <button type="button" onClick={() => switchMode("signup")} className="font-semibold text-brand-text underline underline-offset-2">
+              Create an account
+            </button>{" "}
+            to start.
+          </>
+        )}
       </p>
     </Card>
   );

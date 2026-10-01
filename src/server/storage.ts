@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { get, put } from "@vercel/blob";
+import { accountsEnabled } from "./config";
 
 /**
  * Tiny JSON document store. In production it uses a private Vercel Blob store
@@ -79,7 +80,6 @@ const fileStorage: Storage = {
 
 /** null when accounts aren't configured (production without a Blob store). */
 export function getStorage(): Storage | null {
-  if (process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID) return blobStorage;
-  if (process.env.NODE_ENV !== "production") return fileStorage;
-  return null;
+  if (!accountsEnabled()) return null;
+  return process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID ? blobStorage : fileStorage;
 }

@@ -20,12 +20,14 @@ The source pages list 4,491 entries. The Low list repeats 828 Top and Mid words,
 
 ## Accounts
 
-Anyone can study as a guest; progress then stays in that browser. Creating an account (username and password, no email) saves progress to the server, so it follows the user to any device and each person on a shared computer keeps their own. When you sign up, progress you made as a guest can carry over.
+The site requires an account: signed-out visitors are sent to the sign-in page (`/login`), and return to the page they asked for after signing in. Accounts are a username and password, with no email. Progress is saved to the server, so it follows each person to any device, and people sharing a computer each keep their own. Progress made on a device before signing up can carry over to the new account.
+
+- `src/proxy.ts` redirects requests without a session cookie to `/login` before any page is served. The browser also checks the session and redirects if it's invalid or expired.
 
 - Passwords are hashed with scrypt (Node's built-in `crypto`). Sessions are a signed, HTTP-only cookie that lasts 60 days.
 - Accounts and progress are stored as small private JSON files in **Vercel Blob**: `users/<username>.json` and `progress/<user-id>.json`. No other database or service is needed.
 - In `next dev` without Blob credentials, the same data goes to a git-ignored `.data/` folder, so accounts work locally.
-- If the deployed site has no Blob store connected, it runs in guest-only mode.
+- If the deployed site has no Blob store connected, accounts are off and the site works without signing in, saving progress in each browser.
 
 **Setup on Vercel (once):** open the project → **Storage** → **Create** → **Blob**, choose **Private**, and connect it to this project for all environments. Then redeploy (or push a commit). Optionally add an `AUTH_SECRET` environment variable of 32+ random characters; otherwise a secret is generated and kept in the Blob store.
 

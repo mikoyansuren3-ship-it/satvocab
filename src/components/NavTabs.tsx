@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChartColumn, GraduationCap, LibraryBig } from "lucide-react";
+import { useAccount } from "@/lib/account";
 import { cn } from "@/lib/cn";
 
 const TABS = [
@@ -13,6 +14,9 @@ const TABS = [
 
 export function NavTabs() {
   const pathname = usePathname();
+  const { status } = useAccount();
+  // Signed-out visitors only see the sign-in page, so there's nowhere to navigate.
+  if (pathname === "/login" && status !== "user" && status !== "unavailable") return null;
   return (
     <nav aria-label="Main" className="flex w-full rounded-full bg-surface-2 p-1 sm:w-auto">
       {TABS.map(({ href, label, icon: Icon }) => {

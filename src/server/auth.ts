@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
 import type { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE } from "./config";
 import type { Storage } from "./storage";
 
 export interface UserRecord {
@@ -14,7 +15,7 @@ export interface SessionUser {
   username: string;
 }
 
-export const SESSION_COOKIE = "satvocab_session";
+export { SESSION_COOKIE };
 const SESSION_DAYS = 60;
 
 export const userKey = (username: string) => `users/${username}.json`;
