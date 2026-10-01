@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { checkUsername, signIn, signUp, useAccount } from "@/lib/account";
@@ -18,6 +17,12 @@ type Step = "username" | "pin" | "choose" | "confirm";
 /** The page to return to, from ?next= (read when needed, so the page can stay static). */
 const nextPath = () => safeNextPath(new URLSearchParams(window.location.search).get("next"));
 
+/**
+ * A full page load, not a client-side navigation: pages the app preloaded while you
+ * were signed out were redirected here, and the router would reuse those redirects.
+ */
+const continueToApp = () => window.location.replace(nextPath());
+
 const lockText = (ms: number) => {
   const minutes = Math.max(1, Math.ceil(ms / 60_000));
   return `Too many wrong tries. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
@@ -26,7 +31,6 @@ const lockText = (ms: number) => {
 export function LoginView() {
   const { status, user, sync } = useAccount();
   const state = useAppState();
-  const router = useRouter();
   const [step, setStep] = useState<Step>("username");
   const [username, setUsername] = useState("");
   const [account, setAccount] = useState("");
@@ -40,8 +44,8 @@ export function LoginView() {
 
   // Already signed in (or just signed in): continue to the page that was asked for.
   useEffect(() => {
-    if (signedIn) router.replace(nextPath());
-  }, [signedIn, router]);
+    if (signedIn) continueToApp();
+  }, [signedIn]);
 
   if (status === "unavailable") {
     return (
@@ -101,7 +105,7 @@ export function LoginView() {
     setError("");
     const failure = step === "pin" ? await signIn(account, value) : await signUp(account, value, keepProgress);
     setBusy(false);
-    if (!failure) return router.replace(nextPath());
+    if (!failure) return continueToApp();
     if (step === "confirm") {
       setFirstPin("");
       return go("choose", failure);

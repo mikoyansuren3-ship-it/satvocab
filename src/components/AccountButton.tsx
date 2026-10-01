@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Check, ChevronDown, CloudOff, LogIn, LogOut, RefreshCw, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { signOut, useAccount, type SyncStatus } from "@/lib/account";
@@ -38,7 +38,6 @@ export function syncText(sync: SyncStatus) {
 export function AccountButton() {
   const { status, user, sync } = useAccount();
   const pathname = usePathname();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -129,9 +128,8 @@ export function AccountButton() {
             onClick={async () => {
               setBusy(true);
               await signOut();
-              setBusy(false);
-              setOpen(false);
-              router.replace("/login");
+              // A full page load, so nothing preloaded for this account is reused.
+              window.location.replace("/login");
             }}
             className="mt-1 flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-[15px] font-semibold hover:bg-surface-2 disabled:opacity-60"
           >
