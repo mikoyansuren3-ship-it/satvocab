@@ -7,8 +7,17 @@ import { cn } from "@/lib/cn";
 import { describeFilters, filterWords, summarize } from "@/lib/filters";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE, levelOf } from "@/lib/mastery";
 import { buildQuiz, shuffle } from "@/lib/quiz";
-import { sessionCache, type ActiveSession, type SessionProgress, type SessionResult } from "@/lib/session";
-import { clearFilters, logSession, setFilters, setStudy, useAppState, type StudyMode } from "@/lib/store";
+import {
+  logRun,
+  sessionCache,
+  sessionIds,
+  sessionMode,
+  type ActiveSession,
+  type SessionProgress,
+  type SessionResult,
+} from "@/lib/session";
+import { fmt } from "@/lib/format";
+import { clearFilters, setFilters, setStudy, useAppState, type StudyMode } from "@/lib/store";
 import { TIERS, TIER_INFO, WORDS, tierOf, type Tier } from "@/lib/words";
 import { onRadioGroupKeyDown } from "../bits";
 import { FilterAside, MobileFilterButton } from "../FilterPanel";
@@ -30,15 +39,19 @@ function sessionLength(active: ActiveSession): number {
 }
 
 /** Picks up a session left running on another tab; a finished one becomes its summary. */
-function restore(): { active: ActiveSession | null; progress: SessionProgress | null; result: SessionResult | null; unlogged: boolean } {
+function restore(): { active: ActiveSession | null; progress: SessionProgress | null; result: SessionResult | null } {
   const { active, progress, result } = sessionCache;
   if (active && progress && progress.index >= sessionLength(active)) {
-    const ids = active.kind === "flashcards" ? active.ids : active.questions.map((q) => q.id);
-    const mode = active.kind === "flashcards" ? "flashcards" : active.mode;
-    const done = { mode, ids, answered: progress.right.length + progress.missed.length, correct: progress.right.length, missed: progress.missed };
-    return { active: null, progress: null, result: done, unlogged: true };
+    const done: SessionResult = {
+      mode: sessionMode(active),
+      ids: sessionIds(active),
+      answered: progress.right.length + progress.missed.length,
+      correct: progress.right.length,
+      missed: progress.missed,
+    };
+    return { active: null, progress: null, result: done };
   }
-  return { active, progress: active ? progress : null, result: active ? null : result, unlogged: false };
+  return { active, progress: active ? progress : null, result: active ? null : result };
 }
 
 export function StudyView() {
@@ -51,12 +64,11 @@ export function StudyView() {
   const focusTitle = useRef(false);
 
   useEffect(() => {
-    // The cache check keeps StrictMode's second effect run from logging twice.
-    if (initial.unlogged && initial.result && sessionCache.result !== initial.result) {
+    // A quiz finished on another tab: make the cache match the summary shown.
+    if (!initial.active && initial.result && sessionCache.active) {
       sessionCache.active = null;
       sessionCache.progress = null;
       sessionCache.result = initial.result;
-      logSession({ mode: initial.result.mode, total: initial.result.answered, correct: initial.result.correct });
     }
   }, [initial]);
 
@@ -87,10 +99,12 @@ export function StudyView() {
 
   const saveProgress = (p: SessionProgress) => {
     sessionCache.progress = p;
+    // Log as soon as the last question is answered, even if "See results" is never clicked.
+    if (active && p.index >= sessionLength(active)) logRun(active, p.right.length + p.missed.length, p.right.length);
   };
 
   const finish = (r: SessionResult) => {
-    logSession({ mode: r.mode, total: r.answered, correct: r.correct });
+    if (active) logRun(active, r.answered, r.correct);
     sessionCache.active = null;
     sessionCache.progress = null;
     sessionCache.result = r;
@@ -168,7 +182,7 @@ export function StudyView() {
                 Study session
               </h1>
               <p className="mt-1 text-[15px] text-muted">
-                <strong className="text-ink">{pool.length.toLocaleString("en-US")}</strong> matching word{pool.length === 1 ? "" : "s"} ·{" "}
+                <strong className="text-ink">{fmt(pool.length)}</strong> matching word{pool.length === 1 ? "" : "s"} ·{" "}
                 {describeFilters(filters)}
               </p>
             </div>
@@ -178,7 +192,10 @@ export function StudyView() {
           {filters.query.trim() && (
             <button
               type="button"
-              onClick={() => setFilters({ query: "" })}
+              onClick={() => {
+                setFilters({ query: "" });
+                titleRef.current?.focus();
+              }}
               className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface-2 py-1 pr-2 pl-3 text-sm font-medium hover:bg-surface-3"
             >
               Search: “{filters.query.trim()}”
@@ -192,7 +209,7 @@ export function StudyView() {
               {levelCounts.map(({ level, n }) => (
                 <span key={level} className="inline-flex items-center gap-1.5">
                   <span className={cn("size-2 rounded-full", LEVEL_STYLE[level].dot)} aria-hidden />
-                  {LEVEL_LABEL[level]} <span className="font-semibold text-ink tabular-nums">{n.toLocaleString("en-US")}</span>
+                  {LEVEL_LABEL[level]} <span className="font-semibold text-ink tabular-nums">{fmt(n)}</span>
                 </span>
               ))}
             </div>
@@ -291,14 +308,21 @@ export function StudyView() {
           <div className="mt-7 flex flex-col gap-4 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
             {pool.length > 0 ? (
               <p className="text-[15px] text-muted">
-                <strong className="text-ink">{count.toLocaleString("en-US")}</strong> word{count === 1 ? "" : "s"}
+                <strong className="text-ink">{fmt(count)}</strong> word{count === 1 ? "" : "s"}
                 {count < pool.length ? <> · the first {count} by “{summarize.sort(filters)}”</> : null}
                 {study.shuffle ? ", shuffled" : ""}
               </p>
             ) : (
               <p className="text-[15px] text-muted">
                 No words match your filters.{" "}
-                <button type="button" onClick={clearFilters} className="font-semibold text-brand-text underline underline-offset-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearFilters();
+                    titleRef.current?.focus();
+                  }}
+                  className="font-semibold text-brand-text underline underline-offset-2"
+                >
                   Clear filters
                 </button>
               </p>

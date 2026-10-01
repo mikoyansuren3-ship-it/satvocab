@@ -141,19 +141,34 @@ export const CATEGORY_STYLE: Record<Category, { pill: string; swatch: string }> 
   },
 };
 
+/**
+ * Strict match used for masking answers: does `token` share the headword's
+ * root closely enough to give the answer away?
+ */
+function isSameRoot(token: string, target: string, prefix: number): boolean {
+  // The headword is a prefix of the token: predict -> prediction, vex -> vexed.
+  if (prefix === target.length) return true;
+  // The token is the headword's root: harm -> harmful, neutral -> neutralize.
+  if (prefix === token.length) return token.length >= 4 && token.length >= target.length * 0.45;
+  if (prefix < 4) return false; // mute vs mutual
+  // Root that drops a final e or y: malice -> malicious, mutiny -> mutinous.
+  const rest = token.slice(prefix);
+  if (rest === "e" || rest === "y") return true;
+  // Otherwise a long shared stem (repetitive / repetitious, toxic / toxin), but not
+  // status vs stature, and not a short word inside a long one (chary / characterized).
+  return prefix >= Math.min(6, target.length - 1) && !(token.length > target.length + 3 && prefix < 5);
+}
+
 /** Index of the token in `text` that is the headword or an inflection of it (e.g. "fostered"). */
 function findHeadword(text: string, word: string, strict = false): { index: number; length: number } | null {
   const target = word.toLowerCase();
-  // Strict matching (for masking) needs a longer shared prefix so "mute" never blanks "mutual".
-  const threshold = Math.min(target.length, strict ? Math.max(4, target.length - 2) : Math.max(3, target.length - 3));
+  const threshold = Math.min(target.length, Math.max(3, target.length - 3));
   let best: { index: number; length: number; score: number } | null = null;
   for (const match of text.matchAll(/[A-Za-zÀ-ÿ]+(?:[-'’][A-Za-zÀ-ÿ]+)*/g)) {
     const token = match[0].toLowerCase();
     let prefix = 0;
     while (prefix < token.length && prefix < target.length && token[prefix] === target[prefix]) prefix++;
-    if (prefix < threshold) continue;
-    // When neither word contains the other (status vs stature), demand a longer shared stem.
-    if (strict && prefix < token.length && prefix < target.length && prefix < Math.min(6, target.length - 1)) continue;
+    if (strict ? !isSameRoot(token, target, prefix) : prefix < threshold) continue;
     const score = prefix * 10 + (token.length >= target.length - 1 ? 5 : 0);
     if (!best || score > best.score) best = { index: match.index ?? 0, length: match[0].length, score };
   }

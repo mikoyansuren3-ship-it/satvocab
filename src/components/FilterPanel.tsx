@@ -11,6 +11,7 @@ import {
   summarize,
   type Filters,
 } from "@/lib/filters";
+import { fmt } from "@/lib/format";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE } from "@/lib/mastery";
 import { clearFilters, setFilters, useAppState } from "@/lib/store";
 import {
@@ -34,6 +35,7 @@ function toggle<T>(list: T[], value: T): T[] {
 const POS_IN_DATA = POS_OPTIONS.filter((o) => WORDS.some((w) => w.pos === o.value));
 
 export function FilterPanel({ onDone, doneLabel = "Done" }: { onDone?: () => void; doneLabel?: string }) {
+  const inSheet = Boolean(onDone);
   const { filters: f, progress, saved } = useAppState();
   const counts = useMemo(() => facetCounts(WORDS, f, { progress, saved }), [f, progress, saved]);
   const set = (patch: Partial<Filters>) => setFilters(patch);
@@ -46,7 +48,8 @@ export function FilterPanel({ onDone, doneLabel = "Done" }: { onDone?: () => voi
   const visibleTiers = f.tiers.length ? TIERS.filter((t) => f.tiers.includes(t)) : TIERS;
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-line bg-surface">
+    // No overflow clipping in the sheet, so its sticky footer can stick.
+    <div className={cn("rounded-3xl border border-line bg-surface", !inSheet && "overflow-hidden")}>
       <div className="flex items-center justify-between px-5 pt-5 pb-3">
         <h2 className="text-base font-bold">Filters</h2>
         {onDone && (
@@ -163,7 +166,7 @@ export function FilterPanel({ onDone, doneLabel = "Done" }: { onDone?: () => voi
         </OptionGroup>
       </Section>
 
-      <div className="flex gap-2 border-t border-line p-5">
+      <div className={cn("flex gap-2 border-t border-line p-5", inSheet && "sticky bottom-0 rounded-b-3xl bg-surface")}>
         <button
           type="button"
           onClick={clearFilters}
@@ -277,7 +280,7 @@ function Option({
       {count !== undefined && (
         <span className="text-sm text-muted tabular-nums">
           <span className="sr-only">, </span>
-          {count}
+          {fmt(count)}
           <span className="sr-only"> words</span>
         </span>
       )}
@@ -397,12 +400,24 @@ export function MobileFilterButton({ className, doneLabel }: { className?: strin
 
 function FilterSheet({ onClosed, doneLabel }: { onClosed: () => void; doneLabel?: string }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Only a press that both starts and ends on the backdrop closes the sheet.
+  const pressedBackdrop = useRef(false);
   useEffect(() => {
     const dialog = ref.current;
     if (dialog && !dialog.open) dialog.showModal();
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = previous;
+    };
   }, []);
-  // Close through the dialog itself so focus returns to the Filters button.
-  const dismiss = () => ref.current?.close();
+  // Close through the dialog so focus returns to the Filters button, then unmount
+  // directly rather than waiting for the async "close" event.
+  const dismiss = () => {
+    ref.current?.close();
+    onClosed();
+  };
   return (
     <dialog
       ref={ref}
@@ -412,10 +427,14 @@ function FilterSheet({ onClosed, doneLabel }: { onClosed: () => void; doneLabel?
         if (ref.current?.open) return;
         onClosed();
       }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) dismiss();
+      onPointerDown={(e) => {
+        pressedBackdrop.current = e.target === e.currentTarget;
       }}
-      className="m-0 mt-auto max-h-[88vh] w-full max-w-none overflow-y-auto rounded-t-3xl bg-transparent p-2 text-ink sm:mx-auto sm:mb-auto sm:max-w-md sm:rounded-3xl"
+      onClick={(e) => {
+        if (pressedBackdrop.current && e.target === e.currentTarget) dismiss();
+        pressedBackdrop.current = false;
+      }}
+      className="m-0 mt-auto max-h-[88vh] w-full max-w-none overflow-y-auto overscroll-contain rounded-t-3xl bg-transparent p-2 text-ink sm:mx-auto sm:mb-auto sm:max-w-md sm:rounded-3xl"
     >
       <FilterPanel onDone={dismiss} doneLabel={doneLabel} />
     </dialog>

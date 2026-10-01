@@ -53,8 +53,8 @@ function meaning(w: Word) {
 /**
  * True when two words shouldn't appear as choices for the same question
  * because either could reasonably be "the" answer: same word family, the same
- * synonym or definition, overlapping synonyms, or one word used in the other's
- * definition (pernicious: "harmful; exceedingly harmful" vs. harmful).
+ * synonym or definition, a synonym that appears in the other's meaning, or one
+ * word used in the other's definition (pernicious: "harmful; exceedingly harmful" vs. harmful).
  */
 export function conflicts(a: Word, b: Word): boolean {
   if (a.id === b.id || related(a.word, b.word)) return true;
@@ -65,7 +65,9 @@ export function conflicts(a: Word, b: Word): boolean {
   const aw = norm(a.word);
   const bw = norm(b.word);
   if (ma.all.has(bw) || mb.all.has(aw)) return true;
-  for (const t of ma.synonym) if (mb.synonym.has(t)) return true;
+  // One word's synonym shows up in the other's synonym or definition (concise "brief" vs terse "brief; ...").
+  for (const t of ma.synonym) if (mb.all.has(t)) return true;
+  for (const t of mb.synonym) if (ma.all.has(t)) return true;
   return false;
 }
 

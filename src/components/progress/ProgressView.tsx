@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Download, Table2, Trash2, Upload } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { DEFAULT_FILTERS, type Filters } from "@/lib/filters";
+import { fmt } from "@/lib/format";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE, levelOf, type Level } from "@/lib/mastery";
 import {
   applyImport,
@@ -37,7 +38,7 @@ type Counts = Record<Level, number>;
 
 /** Stacked order: progress fills left to right; "never seen" is the trailing track. */
 const STACK: Level[] = ["mastered", "almost", "learning", "new"];
-const fmt = (n: number) => n.toLocaleString("en-US");
+const SHORT_LABEL: Record<Level, string> = { mastered: "Mastered", almost: "Almost", learning: "Learning", new: "New" };
 
 function countLevels(words: Word[], progress: AppState["progress"]): Counts {
   const counts: Counts = { new: 0, learning: 0, almost: 0, mastered: 0 };
@@ -298,19 +299,25 @@ function StackedBar({ counts, label, tall = false }: { counts: Counts; label: st
   const total = LEVELS.reduce((sum, l) => sum + counts[l], 0);
   const summary = STACK.map((l) => `${LEVEL_LABEL[l]} ${counts[l]}`).join(", ");
   return (
-    <div role="img" aria-label={`${label}: ${summary}`} className={cn("flex w-full gap-[2px]", tall ? "h-6" : "h-3")}>
-      {STACK.filter((l) => counts[l] > 0).map((l) => (
-        <div
+    <span role="img" aria-label={`${label}: ${summary}`} className={cn("flex w-full gap-[2px]", tall ? "h-6" : "h-3")}>
+      {STACK.filter((l) => counts[l] > 0).map((l, i, shown) => (
+        <span
           key={l}
-          className={cn("group relative h-full first:rounded-l-[4px] last:rounded-r-[4px]", LEVEL_STYLE[l].bar)}
+          className={cn("group relative block h-full first:rounded-l-[4px] last:rounded-r-[4px]", LEVEL_STYLE[l].bar)}
           style={{ flexGrow: counts[l], flexBasis: 0, minWidth: 3 }}
         >
-          <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 rounded-lg bg-ink px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-bg shadow-lg group-hover:block">
+          <span
+            className={cn(
+              "pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-lg bg-ink px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-bg shadow-lg group-hover:block",
+              // Anchor edge segments' tooltips inward so they stay on screen.
+              i === 0 ? "left-0" : i === shown.length - 1 ? "right-0" : "left-1/2 -translate-x-1/2",
+            )}
+          >
             {LEVEL_LABEL[l]}: {fmt(counts[l])} ({Math.round((counts[l] / total) * 100)}%)
           </span>
-        </div>
+        </span>
       ))}
-    </div>
+    </span>
   );
 }
 
@@ -375,7 +382,8 @@ function Breakdown({
                 <th className="py-2 pr-3 font-semibold">{firstColumn}</th>
                 {STACK.map((l) => (
                   <th key={l} className="px-2 py-2 text-right font-semibold">
-                    {LEVEL_LABEL[l]}
+                    <span className="sm:hidden">{SHORT_LABEL[l]}</span>
+                    <span className="hidden sm:inline">{LEVEL_LABEL[l]}</span>
                   </th>
                 ))}
               </tr>
@@ -404,14 +412,17 @@ function Breakdown({
                   type="button"
                   onClick={() => onSelect(r.key)}
                   title={selectHint}
-                  className="grid w-full grid-cols-[9.5rem_1fr_4rem] items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-surface-2 sm:grid-cols-[10.5rem_1fr_4.5rem]"
+                  // Phones: label and count on one line, full-width bar below.
+                  className="grid w-full grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 rounded-xl px-2 py-2 text-left hover:bg-surface-2 sm:grid-cols-[10.5rem_1fr_minmax(5.5rem,max-content)]"
                 >
                   <span className="flex min-w-0 items-center gap-2 text-[15px] font-medium">
                     {r.swatch && <span className={cn("size-2 shrink-0 rounded-full", r.swatch)} aria-hidden />}
                     <span className="truncate">{r.label}</span>
                   </span>
-                  <StackedBar counts={r.counts} label={r.label} />
-                  <span className="text-right text-sm text-muted tabular-nums">
+                  <span className="col-span-2 row-start-2 block sm:col-span-1 sm:col-start-2 sm:row-start-1">
+                    <StackedBar counts={r.counts} label={r.label} />
+                  </span>
+                  <span className="text-right text-sm text-muted tabular-nums sm:col-start-3 sm:row-start-1">
                     <span className="font-semibold text-ink">{fmt(r.counts.mastered)}</span>/{fmt(total)}
                   </span>
                 </button>

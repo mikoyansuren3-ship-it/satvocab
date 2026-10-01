@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { Play, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { describeFilters, filterWords, isUnfiltered, type Filters } from "@/lib/filters";
+import { fmt } from "@/lib/format";
 import { LEVELS, LEVEL_LABEL, type Level, type WordProgress } from "@/lib/mastery";
+import { clearSession } from "@/lib/session";
 import { clearFilters, setFilters, useAppState, useHydrated } from "@/lib/store";
 import { WORDS, type Word } from "@/lib/words";
 import { FilterAside, MobileFilterButton } from "../FilterPanel";
@@ -80,7 +82,7 @@ export function WordsView() {
               </button>
             )}
           </label>
-          <MobileFilterButton doneLabel={`Show ${list.length.toLocaleString("en-US")} words`} />
+          <MobileFilterButton doneLabel={`Show ${fmt(list.length)} words`} />
         </div>
 
         <MasteryChips filters={filters} />
@@ -88,13 +90,16 @@ export function WordsView() {
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <p className="min-w-0 text-[15px]" aria-live="polite">
             <span className="font-bold">
-              {list.length.toLocaleString("en-US")} word{list.length === 1 ? "" : "s"}
+              {fmt(list.length)} word{list.length === 1 ? "" : "s"}
             </span>{" "}
             <span className="text-muted">{describeFilters(filters)}</span>
           </p>
           <button
             type="button"
-            onClick={() => router.push("/")}
+            onClick={() => {
+              clearSession();
+              router.push("/");
+            }}
             disabled={list.length === 0}
             className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-hover disabled:opacity-50"
           >
@@ -120,7 +125,10 @@ export function WordsView() {
             <p className="mt-1 text-muted">Try a different search or loosen your filters.</p>
             <button
               type="button"
-              onClick={clearFilters}
+              onClick={() => {
+                clearFilters();
+                searchRef.current?.focus();
+              }}
               className="mt-5 rounded-full border border-line px-5 py-2.5 font-semibold hover:bg-surface-2"
             >
               Clear filters
@@ -148,10 +156,34 @@ function WordList({
   dimmed: boolean;
 }) {
   const [limit, setLimit] = useState(PAGE);
+  const listRef = useRef<HTMLUListElement>(null);
+  // Row index that last held focus, so focus can land nearby if that row disappears
+  // (e.g. un-saving a word under "Saved only") or new rows are revealed.
+  const focusIndex = useRef(-1);
+  const focusAfterGrow = useRef(-1);
   const visible = list.slice(0, limit);
+
+  useEffect(() => {
+    const rows = listRef.current?.querySelectorAll<HTMLButtonElement>("button[aria-controls$='-details']");
+    if (!rows?.length) return;
+    if (focusAfterGrow.current >= 0) {
+      rows[Math.min(focusAfterGrow.current, rows.length - 1)]?.focus();
+      focusAfterGrow.current = -1;
+    } else if (focusIndex.current >= 0 && document.activeElement === document.body) {
+      rows[Math.min(focusIndex.current, rows.length - 1)]?.focus();
+    }
+  }, [visible.length, list]);
+
   return (
     <>
-      <ul className={cn("mt-4 space-y-2 transition-opacity", dimmed && "opacity-60")}>
+      <ul
+        ref={listRef}
+        onFocus={(e) => {
+          const row = (e.target as HTMLElement).closest("li");
+          focusIndex.current = row ? Array.prototype.indexOf.call(listRef.current?.children ?? [], row) : -1;
+        }}
+        className={cn("mt-4 space-y-2 transition-opacity", dimmed && "opacity-60")}
+      >
         {visible.map((w) => (
           <WordRow
             key={w.id}
@@ -166,11 +198,14 @@ function WordList({
       {list.length > limit && (
         <div className="mt-5 flex flex-col items-center gap-2">
           <p className="text-sm text-muted">
-            Showing {limit.toLocaleString("en-US")} of {list.length.toLocaleString("en-US")}
+            Showing {fmt(limit)} of {fmt(list.length)}
           </p>
           <button
             type="button"
-            onClick={() => setLimit((l) => l + PAGE)}
+            onClick={() => {
+              focusAfterGrow.current = limit;
+              setLimit((l) => l + PAGE);
+            }}
             className="rounded-full border border-line px-5 py-2.5 font-semibold hover:bg-surface-2"
           >
             Show {Math.min(PAGE, list.length - limit)} more

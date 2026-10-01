@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { levelOf } from "@/lib/mastery";
 import type { Question } from "@/lib/quiz";
 import { recordAnswer, useAppState, type StudyMode } from "@/lib/store";
+import { fmt } from "@/lib/format";
 import { WORD_BY_ID, maskHeadword, type Word } from "@/lib/words";
 import { Example, MasteryBadge, ProgressBar, SaveButton } from "../bits";
 import { ignoreKey, type SessionProgress, type SessionResult } from "./types";
@@ -115,7 +116,7 @@ export function Quiz({
           End quiz
         </button>
         <span className="text-sm font-semibold tabular-nums text-muted">
-          Question {index + 1} of {questions.length}
+          Question {fmt(index + 1)} of {fmt(questions.length)}
           <span className="mx-2 text-faint">·</span>
           <span className="text-brand-text">{right.length} right</span>
         </span>
@@ -152,6 +153,9 @@ export function Quiz({
         <ol className="mt-6 space-y-2.5" aria-label="Answer choices">
           {q.options.map((optId, i) => {
             const opt = WORD_BY_ID.get(optId) as Word;
+            // Every option hides its own word, so a blank never singles out the answer.
+            const optSynonym = maskHeadword(opt.synonym, opt.word);
+            const optDefinition = opt.definition ? maskHeadword(opt.definition, opt.word) : "";
             const isAnswer = i === q.answer;
             const isChoice = i === choice;
             const state = !answered ? "idle" : isAnswer ? "right" : isChoice ? "wrong" : "dim";
@@ -161,7 +165,7 @@ export function Quiz({
                   type="button"
                   onClick={() => answer(i)}
                   disabled={answered}
-                  aria-label={`${LETTERS[i]}: ${toWord ? opt.word : `${opt.synonym}. ${opt.definition}`}${
+                  aria-label={`${LETTERS[i]}: ${toWord ? opt.word : `${optSynonym}. ${optDefinition}`}${
                     state === "right" ? " (correct answer)" : state === "wrong" ? " (your answer, incorrect)" : ""
                   }`}
                   className={cn(
@@ -189,8 +193,8 @@ export function Quiz({
                     <span className="self-center text-lg font-semibold">{opt.word}</span>
                   ) : (
                     <span className="min-w-0">
-                      <span className="font-semibold">{opt.synonym}</span>
-                      {opt.definition && <span className="block text-[15px] text-muted">{opt.definition}</span>}
+                      <span className="font-semibold">{optSynonym}</span>
+                      {optDefinition && <span className="block text-[15px] text-muted">{optDefinition}</span>}
                     </span>
                   )}
                 </button>

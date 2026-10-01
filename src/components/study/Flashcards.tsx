@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { Check, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { recordAnswer, useAppState } from "@/lib/store";
-import { TIER_INFO, WORD_BY_ID, bankLabel, type Word } from "@/lib/words";
+import { fmt } from "@/lib/format";
+import { TIER_INFO, WORD_BY_ID, bankLabel, maskHeadword, type Word } from "@/lib/words";
 import { CategoryPill, Example, ProgressBar, SaveButton } from "../bits";
 import { ignoreKey, type SessionProgress, type SessionResult } from "./types";
 
@@ -29,12 +30,13 @@ export function Flashcards({
   const [known, setKnown] = useState<string[]>(resume?.right ?? []);
   const [missed, setMissed] = useState<string[]>(resume?.missed ?? []);
   const cardRef = useRef<HTMLButtonElement>(null);
-  // Index of the last graded card, so a double-click can't grade the next, unseen card.
-  const gradedRef = useRef(-1);
+  // When the current card appeared; grades in the first moments are stray double-clicks or taps.
+  const shownAt = useRef(0);
   const word = WORD_BY_ID.get(ids[index]) as Word;
 
-  // Keep focus on the card so Space/Enter flip it rather than re-pressing a grade button.
   useEffect(() => {
+    shownAt.current = performance.now();
+    // Keep focus on the card so Space/Enter flip it rather than re-pressing a grade button.
     cardRef.current?.focus({ preventScroll: true });
   }, [index]);
 
@@ -42,8 +44,7 @@ export function Flashcards({
     onDone({ mode: "flashcards", ids, answered: k.length + m.length, correct: k.length, missed: m });
 
   const grade = (ok: boolean) => {
-    if (gradedRef.current === index) return;
-    gradedRef.current = index;
+    if (performance.now() - shownAt.current < 250) return;
     recordAnswer(word.id, ok);
     const nextKnown = ok ? [...known, word.id] : known;
     const nextMissed = ok ? missed : [...missed, word.id];
@@ -94,7 +95,7 @@ export function Flashcards({
           End session
         </button>
         <span className="text-sm font-semibold text-muted tabular-nums">
-          Card {index + 1} of {ids.length}
+          Card {fmt(index + 1)} of {fmt(ids.length)}
         </span>
         <SaveButton id={word.id} word={word.word} saved={Boolean(saved[word.id])} />
       </div>
@@ -114,7 +115,7 @@ export function Flashcards({
             flipped && "[transform:rotateY(180deg)]",
           )}
         >
-          <Face hidden={flipped}>{showWordFirst ? <WordSide word={word} /> : <MeaningSide word={word} />}</Face>
+          <Face hidden={flipped}>{showWordFirst ? <WordSide word={word} /> : <MeaningSide word={word} masked />}</Face>
           <Face hidden={!flipped} back>
             {showWordFirst ? (
               <>
@@ -150,7 +151,8 @@ export function Flashcards({
       <div className="mt-5 grid grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={() => grade(false)}
+          // detail > 1 is the second click of a double-click.
+          onClick={(e) => e.detail <= 1 && grade(false)}
           className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-amber-500 bg-surface px-3 py-3.5 text-[15px] font-semibold text-amber-800 transition-colors hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/50"
         >
           <RotateCcw className="size-4 shrink-0" aria-hidden />
@@ -159,7 +161,7 @@ export function Flashcards({
         </button>
         <button
           type="button"
-          onClick={() => grade(true)}
+          onClick={(e) => e.detail <= 1 && grade(true)}
           className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-brand bg-brand px-3 py-3.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-hover"
         >
           <Check className="size-4 shrink-0" aria-hidden />
@@ -201,11 +203,13 @@ function WordSide({ word }: { word: Word }) {
   );
 }
 
-function MeaningSide({ word }: { word: Word }) {
+/** `masked` blanks the headword so a definition-first card doesn't give the answer away. */
+function MeaningSide({ word, masked = false }: { word: Word; masked?: boolean }) {
+  const show = (text: string) => (masked ? maskHeadword(text, word.word) : text);
   return (
     <div className="my-auto pt-4 text-center">
-      <p className="text-2xl font-bold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">{word.synonym}</p>
-      {word.definition && <p className="mt-3 text-lg text-muted">{word.definition}</p>}
+      <p className="text-2xl font-bold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">{show(word.synonym)}</p>
+      {word.definition && <p className="mt-3 text-lg text-muted">{show(word.definition)}</p>}
     </div>
   );
 }

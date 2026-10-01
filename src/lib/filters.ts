@@ -6,6 +6,7 @@ import {
   TIERS,
   TIER_INFO,
   bankLabel,
+  tierOf,
   type Category,
   type Pos,
   type Tier,
@@ -165,9 +166,14 @@ export function facetCounts(words: Word[], f: Filters, ctx: FilterContext): Face
     pos: Object.fromEntries(POS_OPTIONS.map((o) => [o.value, 0])) as Record<Pos, number>,
     saved: { all: 0, saved: 0, unsaved: 0 },
   };
+  // A level's count is what selecting it would show: picking a level keeps only
+  // that level's selected word banks (or all of its banks if none are selected).
+  const byTier = Object.fromEntries(
+    TIERS.map((t) => [t, { ...f, lessons: f.lessons.filter((l) => tierOf(l) === t) }]),
+  ) as Record<Tier, Filters>;
   for (const w of words) {
     if (matches(w, f, ctx, "mastery")) counts.mastery[levelOf(ctx.progress[w.id])]++;
-    if (matches(w, f, ctx, "tiers")) counts.tiers[w.tier]++;
+    if (matches(w, byTier[w.tier], ctx, "tiers")) counts.tiers[w.tier]++;
     if (matches(w, f, ctx, "lessons")) counts.lessons[w.lesson]++;
     if (matches(w, f, ctx, "categories")) counts.categories[w.category]++;
     if (matches(w, f, ctx, "pos")) counts.pos[w.pos]++;

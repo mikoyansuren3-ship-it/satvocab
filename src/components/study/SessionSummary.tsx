@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { RotateCcw, Shuffle, Trophy } from "lucide-react";
 import { levelOf } from "@/lib/mastery";
 import { useAppState } from "@/lib/store";
+import { fmt } from "@/lib/format";
 import { WORD_BY_ID } from "@/lib/words";
 import { MasteryBadge, SaveButton } from "../bits";
 import { MODE_LABEL, type SessionResult } from "./types";
@@ -47,9 +48,9 @@ export function SessionSummary({
         </h1>
         <p className="mt-3 text-lg text-muted">
           {isFlash ? "You knew " : "You got "}
-          <strong className="text-ink">{correct}</strong> of <strong className="text-ink">{answered}</strong>
-          {isFlash ? " cards" : " right"} ({pct}%)
-          {answered < result.ids.length && <> · ended early, {result.ids.length - answered} skipped</>}
+          <strong className="text-ink">{fmt(correct)}</strong> of <strong className="text-ink">{fmt(answered)}</strong>
+          {isFlash ? (answered === 1 ? " card" : " cards") : " right"} ({pct}%)
+          {answered < result.ids.length && <> · ended early, {fmt(result.ids.length - answered)} skipped</>}
         </p>
 
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
@@ -60,7 +61,7 @@ export function SessionSummary({
               className="inline-flex items-center justify-center gap-2 rounded-full bg-brand px-5 py-3 font-semibold whitespace-nowrap text-white hover:bg-brand-hover"
             >
               <RotateCcw className="size-4" aria-hidden />
-              Retry {missed.length} missed
+              Retry {fmt(missed.length)} missed
             </button>
           )}
           <button
