@@ -1,15 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { Play, Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { describeFilters, filterWords, type Filters } from "@/lib/filters";
-import { LEVELS, LEVEL_LABEL, type Level } from "@/lib/mastery";
+import { describeFilters, filterWords, isUnfiltered, type Filters } from "@/lib/filters";
+import { LEVELS, LEVEL_LABEL, type Level, type WordProgress } from "@/lib/mastery";
 import { clearFilters, setFilters, useAppState, useHydrated } from "@/lib/store";
-import { WORDS } from "@/lib/words";
+import { WORDS, type Word } from "@/lib/words";
 import { FilterAside, MobileFilterButton } from "../FilterPanel";
 import { WordRow } from "./WordRow";
+
+const PAGE = 100;
+
+function subscribeWide(onChange: () => void) {
+  const mq = window.matchMedia("(min-width: 640px)");
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
 
 export function WordsView() {
   const { filters, progress, saved } = useAppState();
@@ -18,13 +26,18 @@ export function WordsView() {
   const list = useMemo(() => filterWords(WORDS, filters, { progress, saved }), [filters, progress, saved]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const wide = useSyncExternalStore(
+    subscribeWide,
+    () => window.matchMedia("(min-width: 640px)").matches,
+    () => true,
+  );
 
   const onToggle = useCallback((id: string) => setExpanded((cur) => (cur === id ? null : id)), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      if (e.key !== "/" || e.metaKey || e.ctrlKey || target?.closest("input, textarea, [contenteditable]")) return;
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || target?.closest("input, textarea, [contenteditable], dialog")) return;
       e.preventDefault();
       searchRef.current?.focus();
     };
@@ -48,7 +61,7 @@ export function WordsView() {
               type="search"
               value={filters.query}
               onChange={(e) => setFilters({ query: e.target.value })}
-              placeholder="Search words or definitions"
+              placeholder={wide ? "Search words or definitions" : "Search words"}
               autoComplete="off"
               spellCheck={false}
               className="w-full rounded-full border border-line bg-surface py-3 pr-11 pl-12 text-[16px] placeholder:text-muted focus:border-focus focus:outline-none [&::-webkit-search-cancel-button]:hidden"
@@ -67,7 +80,7 @@ export function WordsView() {
               </button>
             )}
           </label>
-          <MobileFilterButton />
+          <MobileFilterButton doneLabel={`Show ${list.length.toLocaleString("en-US")} words`} />
         </div>
 
         <MasteryChips filters={filters} />
@@ -75,7 +88,7 @@ export function WordsView() {
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <p className="min-w-0 text-[15px]" aria-live="polite">
             <span className="font-bold">
-              {list.length} word{list.length === 1 ? "" : "s"}
+              {list.length.toLocaleString("en-US")} word{list.length === 1 ? "" : "s"}
             </span>{" "}
             <span className="text-muted">{describeFilters(filters)}</span>
           </p>
@@ -91,18 +104,16 @@ export function WordsView() {
         </div>
 
         {list.length > 0 ? (
-          <ul className={cn("mt-4 space-y-2 transition-opacity", !hydrated && "opacity-60")}>
-            {list.map((w) => (
-              <WordRow
-                key={w.id}
-                word={w}
-                progress={progress[w.id]}
-                saved={Boolean(saved[w.id])}
-                expanded={expanded === w.id}
-                onToggle={onToggle}
-              />
-            ))}
-          </ul>
+          <WordList
+            // A new filter or search starts the list from the top again.
+            key={JSON.stringify(filters)}
+            list={list}
+            progress={progress}
+            saved={saved}
+            expanded={expanded}
+            onToggle={onToggle}
+            dimmed={!hydrated}
+          />
         ) : (
           <div className="mt-4 rounded-3xl border border-dashed border-line px-6 py-14 text-center">
             <p className="text-lg font-semibold">No words match</p>
@@ -116,9 +127,57 @@ export function WordsView() {
             </button>
           </div>
         )}
-
       </section>
     </div>
+  );
+}
+
+function WordList({
+  list,
+  progress,
+  saved,
+  expanded,
+  onToggle,
+  dimmed,
+}: {
+  list: Word[];
+  progress: Record<string, WordProgress>;
+  saved: Record<string, true>;
+  expanded: string | null;
+  onToggle: (id: string) => void;
+  dimmed: boolean;
+}) {
+  const [limit, setLimit] = useState(PAGE);
+  const visible = list.slice(0, limit);
+  return (
+    <>
+      <ul className={cn("mt-4 space-y-2 transition-opacity", dimmed && "opacity-60")}>
+        {visible.map((w) => (
+          <WordRow
+            key={w.id}
+            word={w}
+            progress={progress[w.id]}
+            saved={Boolean(saved[w.id])}
+            expanded={expanded === w.id}
+            onToggle={onToggle}
+          />
+        ))}
+      </ul>
+      {list.length > limit && (
+        <div className="mt-5 flex flex-col items-center gap-2">
+          <p className="text-sm text-muted">
+            Showing {limit.toLocaleString("en-US")} of {list.length.toLocaleString("en-US")}
+          </p>
+          <button
+            type="button"
+            onClick={() => setLimit((l) => l + PAGE)}
+            className="rounded-full border border-line px-5 py-2.5 font-semibold hover:bg-surface-2"
+          >
+            Show {Math.min(PAGE, list.length - limit)} more
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -131,17 +190,17 @@ function MasteryChips({ filters }: { filters: Filters }) {
     { key: "saved", label: "Saved only" },
   ];
   const isActive = (key: ChipKey) => {
-    if (key === "all") return filters.mastery.length === 0 && filters.saved === "all";
+    if (key === "all") return isUnfiltered(filters);
     if (key === "saved") return filters.saved === "saved";
     return filters.mastery.length === 1 && filters.mastery[0] === key;
   };
   const select = (key: ChipKey) => {
-    if (key === "all") setFilters({ mastery: [], saved: "all" });
+    if (key === "all") clearFilters();
     else if (key === "saved") setFilters({ saved: filters.saved === "saved" ? "all" : "saved" });
     else setFilters({ mastery: isActive(key) ? [] : [key] });
   };
   return (
-    <div className="mt-4 flex flex-wrap gap-2" role="toolbar" aria-label="Quick filters">
+    <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Quick filters">
       {chips.map(({ key, label }) => {
         const active = isActive(key);
         return (

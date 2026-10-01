@@ -23,11 +23,13 @@ export function NavTabs() {
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "inline-flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-[15px] font-semibold transition-colors sm:flex-none",
-              active ? "bg-surface text-ink shadow-sm" : "text-muted hover:text-ink",
+              "inline-flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-2.5 py-2 text-[15px] font-semibold whitespace-nowrap transition-colors sm:flex-none sm:gap-2 sm:px-4",
+              active
+                ? "bg-surface text-ink shadow-sm dark:bg-brand-soft dark:text-brand-text dark:ring-1 dark:ring-brand"
+                : "text-muted hover:text-ink",
             )}
           >
-            <Icon className="size-4" aria-hidden />
+            <Icon className="size-4 shrink-0 max-[359px]:hidden" aria-hidden />
             {label}
           </Link>
         );

@@ -3,7 +3,7 @@
 import { memo } from "react";
 import { cn } from "@/lib/cn";
 import { LEVEL_STYLE, levelOf, type WordProgress } from "@/lib/mastery";
-import { POS_NAME, type Word } from "@/lib/words";
+import { POS_NAME, TIER_INFO, bankLabel, type Word } from "@/lib/words";
 import { CategoryPill, Example, MasteryBadge, MasteryDots, SaveButton } from "../bits";
 
 export const WordRow = memo(function WordRow({
@@ -41,6 +41,7 @@ export const WordRow = memo(function WordRow({
                 </abbr>
               </span>
               <MasteryBadge level={level} className="self-center" />
+              <CategoryPill category={word.category} className="self-center px-2 py-0.5 sm:hidden" />
             </span>
             <span className={cn("mt-0.5 block text-[15px] text-muted", !expanded && "truncate")}>
               <span className="font-medium text-ink/85">{word.synonym}</span>
@@ -57,8 +58,9 @@ export const WordRow = memo(function WordRow({
       <div id={detailsId} hidden={!expanded} className="space-y-3 pr-4 pb-4 pl-[2.6rem] sm:pr-14">
         <Example text={word.example} word={word.word} className="text-[15px] leading-relaxed" />
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-          <span className="rounded-lg bg-surface px-2.5 py-1 font-semibold">Lesson {word.lesson}</span>
-          <CategoryPill category={word.category} className="sm:hidden" />
+          <span className="rounded-lg bg-surface px-2.5 py-1 font-semibold">
+            {TIER_INFO[word.tier].label} · {bankLabel(word.lesson)}
+          </span>
           <span>
             {progress
               ? `Reviewed ${progress.seen} time${progress.seen === 1 ? "" : "s"} · ${progress.correct} right, ${progress.wrong} missed`

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { RotateCcw, Shuffle, Trophy } from "lucide-react";
 import { levelOf } from "@/lib/mastery";
 import { useAppState } from "@/lib/store";
@@ -26,6 +27,10 @@ export function SessionSummary({
   onDone: () => void;
 }) {
   const { progress, saved } = useAppState();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    headingRef.current?.focus({ preventScroll: true });
+  }, []);
   const { answered, correct, missed, mode } = result;
   const pct = answered ? Math.round((correct / answered) * 100) : 0;
   const isFlash = mode === "flashcards";
@@ -37,7 +42,7 @@ export function SessionSummary({
           <Trophy className="size-7" aria-hidden />
         </span>
         <p className="mt-4 text-sm font-semibold tracking-wide text-muted uppercase">{MODE_LABEL[mode]} complete</p>
-        <h1 id="summary-title" className="mt-1 text-3xl font-bold tracking-tight">
+        <h1 id="summary-title" ref={headingRef} tabIndex={-1} className="mt-1 rounded-lg text-3xl font-bold tracking-tight focus:outline-none">
           {headline(pct)}
         </h1>
         <p className="mt-3 text-lg text-muted">
@@ -47,12 +52,12 @@ export function SessionSummary({
           {answered < result.ids.length && <> · ended early, {result.ids.length - answered} skipped</>}
         </p>
 
-        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
           {missed.length > 0 && (
             <button
               type="button"
               onClick={onRetryMissed}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-hover"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-brand px-5 py-3 font-semibold whitespace-nowrap text-white hover:bg-brand-hover"
             >
               <RotateCcw className="size-4" aria-hidden />
               Retry {missed.length} missed
@@ -61,7 +66,7 @@ export function SessionSummary({
           <button
             type="button"
             onClick={onRepeat}
-            className="inline-flex items-center justify-center gap-2 rounded-full border border-line px-5 py-3 font-semibold hover:bg-surface-2"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-line px-5 py-3 font-semibold whitespace-nowrap hover:bg-surface-2"
           >
             <Shuffle className="size-4" aria-hidden />
             Same words again
@@ -69,7 +74,7 @@ export function SessionSummary({
           <button
             type="button"
             onClick={onDone}
-            className="inline-flex items-center justify-center rounded-full border border-line px-5 py-3 font-semibold hover:bg-surface-2"
+            className="inline-flex items-center justify-center rounded-full border border-line px-5 py-3 font-semibold whitespace-nowrap hover:bg-surface-2"
           >
             Back to study setup
           </button>

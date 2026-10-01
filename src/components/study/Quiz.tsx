@@ -6,28 +6,32 @@ import { cn } from "@/lib/cn";
 import { levelOf } from "@/lib/mastery";
 import type { Question } from "@/lib/quiz";
 import { recordAnswer, useAppState, type StudyMode } from "@/lib/store";
-import { WORD_BY_ID, type Word } from "@/lib/words";
+import { WORD_BY_ID, maskHeadword, type Word } from "@/lib/words";
 import { Example, MasteryBadge, ProgressBar, SaveButton } from "../bits";
-import { ignoreKey, type SessionResult } from "./types";
+import { ignoreKey, type SessionProgress, type SessionResult } from "./types";
 
 const LETTERS = ["A", "B", "C", "D"];
 
 export function Quiz({
   mode,
   questions,
+  resume,
+  onProgress,
   onExit,
   onDone,
 }: {
   mode: StudyMode;
   questions: Question[];
+  resume?: SessionProgress | null;
+  onProgress: (p: SessionProgress) => void;
   onExit: () => void;
   onDone: (result: SessionResult) => void;
 }) {
   const { saved, progress } = useAppState();
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(resume?.index ?? 0);
   const [choice, setChoice] = useState<number | null>(null);
-  const [right, setRight] = useState<string[]>([]);
-  const [missed, setMissed] = useState<string[]>([]);
+  const [right, setRight] = useState<string[]>(resume?.right ?? []);
+  const [missed, setMissed] = useState<string[]>(resume?.missed ?? []);
   const nextRef = useRef<HTMLButtonElement>(null);
   const promptRef = useRef<HTMLHeadingElement>(null);
 
@@ -44,10 +48,14 @@ export function Quiz({
   const answer = (i: number) => {
     if (answered || i < 0 || i >= q.options.length) return;
     const ok = i === q.answer;
+    const nextRight = ok ? [...right, q.id] : right;
+    const nextMissed = ok ? missed : [...missed, q.id];
     setChoice(i);
+    setRight(nextRight);
+    setMissed(nextMissed);
     recordAnswer(q.id, ok);
-    if (ok) setRight((r) => [...r, q.id]);
-    else setMissed((m) => [...m, q.id]);
+    // An answered question counts as done if the student leaves and comes back.
+    onProgress({ index: index + 1, right: nextRight, missed: nextMissed });
   };
 
   const next = () => {
@@ -67,7 +75,11 @@ export function Quiz({
   }, [index]);
 
   useEffect(() => {
-    if (answered) nextRef.current?.focus({ preventScroll: true });
+    if (!answered) return;
+    const next = nextRef.current;
+    next?.focus({ preventScroll: true });
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    next?.closest("section")?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
   }, [answered]);
 
   useEffect(() => {
@@ -119,13 +131,19 @@ export function Quiz({
         <h2 id="quiz-prompt" ref={promptRef} tabIndex={-1} className="mt-3 rounded-lg focus:outline-none">
           {toWord ? (
             <>
-              <span className="block text-2xl font-bold tracking-tight sm:text-3xl">{word.synonym}</span>
-              {word.definition && <span className="mt-2 block text-lg font-normal text-muted">{word.definition}</span>}
+              <span className="block text-2xl font-bold tracking-tight [overflow-wrap:anywhere] sm:text-3xl">
+                {maskHeadword(word.synonym, word.word)}
+              </span>
+              {word.definition && (
+                <span className="mt-2 block text-lg font-normal text-muted">{maskHeadword(word.definition, word.word)}</span>
+              )}
               <span className="mt-2 block text-base font-normal text-muted italic">{word.pos}</span>
             </>
           ) : (
             <span className="flex flex-wrap items-baseline gap-x-3">
-              <span className="text-4xl font-bold tracking-tight break-words sm:text-5xl">{word.word}</span>
+              <span className="min-w-0 text-[clamp(1.875rem,9vw,3rem)] leading-tight font-bold tracking-tight [overflow-wrap:anywhere]">
+                {word.word}
+              </span>
               <span className="text-lg font-normal text-muted italic">{word.pos}</span>
             </span>
           )}

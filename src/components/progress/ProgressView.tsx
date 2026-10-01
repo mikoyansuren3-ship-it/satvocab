@@ -7,22 +7,37 @@ import { cn } from "@/lib/cn";
 import { DEFAULT_FILTERS, type Filters } from "@/lib/filters";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE, levelOf, type Level } from "@/lib/mastery";
 import {
+  applyImport,
   dayKey,
   exportState,
-  importState,
+  previewImport,
   resetProgress,
   setFilters,
   useAppState,
   useHydrated,
   type AppState,
 } from "@/lib/store";
-import { CATEGORIES, CATEGORY_STYLE, LESSONS, WORDS, WORD_BY_ID, type Word } from "@/lib/words";
+import {
+  CATEGORIES,
+  CATEGORY_STYLE,
+  LESSONS_BY_TIER,
+  TIERS,
+  TIER_INFO,
+  WORDS,
+  WORD_BY_ID,
+  bankLabel,
+  type Category,
+  type Tier,
+  type Word,
+} from "@/lib/words";
+import { onRadioGroupKeyDown } from "../bits";
 import { MODE_LABEL } from "../study/types";
 
 type Counts = Record<Level, number>;
 
 /** Stacked order: progress fills left to right; "never seen" is the trailing track. */
 const STACK: Level[] = ["mastered", "almost", "learning", "new"];
+const fmt = (n: number) => n.toLocaleString("en-US");
 
 function countLevels(words: Word[], progress: AppState["progress"]): Counts {
   const counts: Counts = { new: 0, learning: 0, almost: 0, mastered: 0 };
@@ -54,19 +69,31 @@ function streakLength(days: string[], today: string): number {
   return streak;
 }
 
+interface Row {
+  key: string;
+  label: string;
+  counts: Counts;
+  swatch?: string;
+}
+
 export function ProgressView() {
-  const state = useAppState();
-  const { progress, saved, history, days } = state;
+  const { progress, saved, history, days } = useAppState();
   const hydrated = useHydrated();
   const today = useToday();
   const router = useRouter();
+  const [bankTier, setBankTier] = useState<Tier>("top");
 
   const overall = useMemo(() => countLevels(WORDS, progress), [progress]);
-  const byLesson = useMemo(
-    () => LESSONS.map((l) => ({ key: l, label: `Lesson ${l}`, counts: countLevels(WORDS.filter((w) => w.lesson === l), progress) })),
+  const byTier = useMemo<Row[]>(
+    () => TIERS.map((t) => ({ key: t, label: TIER_INFO[t].label, counts: countLevels(WORDS.filter((w) => w.tier === t), progress) })),
     [progress],
   );
-  const byCategory = useMemo(
+  const byLesson = useMemo<Row[]>(
+    () =>
+      LESSONS_BY_TIER[bankTier].map((l) => ({ key: l, label: bankLabel(l), counts: countLevels(WORDS.filter((w) => w.lesson === l), progress) })),
+    [progress, bankTier],
+  );
+  const byCategory = useMemo<Row[]>(
     () =>
       CATEGORIES.map((c) => ({
         key: c,
@@ -78,20 +105,22 @@ export function ProgressView() {
   );
 
   const totals = useMemo(() => {
-    let seen = 0, correct = 0, answers = 0;
+    let seen = 0;
+    let correct = 0;
+    let answers = 0;
     for (const p of Object.values(progress)) {
       seen++;
       correct += p.correct;
       answers += p.seen;
     }
-    return { seen, correct, answers, accuracy: answers ? Math.round((correct / answers) * 100) : null };
+    return { seen, answers, accuracy: answers ? Math.round((correct / answers) * 100) : null };
   }, [progress]);
 
   const missed = useMemo(
     () =>
       Object.entries(progress)
         .filter(([, p]) => p.wrong > 0)
-        .sort(([a, pa], [b, pb]) => pb.wrong - pa.wrong || pa.correct / pa.seen - pb.correct / pb.seen || a.localeCompare(b))
+        .sort(([a, pa], [b, pb]) => pb.wrong - pa.wrong || pa.correct / pa.seen - pb.correct / pb.seen || a.localeCompare(b, "en"))
         .slice(0, 8)
         .flatMap(([id, p]) => {
           const w = WORD_BY_ID.get(id);
@@ -115,40 +144,74 @@ export function ProgressView() {
           Your progress
         </h1>
         <p className="mt-2 flex flex-wrap items-baseline gap-x-3">
-          <span className="text-5xl font-semibold tracking-tight tabular-nums">{overall.mastered}</span>
-          <span className="text-lg text-muted">of {total} words mastered</span>
+          <span className="text-5xl font-semibold tracking-tight tabular-nums">{fmt(overall.mastered)}</span>
+          <span className="text-lg text-muted">of {fmt(total)} words mastered</span>
         </p>
         <div className="mt-5">
-          <StackedBar counts={overall} total={total} label="All words" tall />
+          <StackedBar counts={overall} label="All words" tall />
         </div>
         <Legend counts={overall} total={total} />
       </section>
 
       <section aria-label="Study stats" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Day streak" value={String(streak)} note={streak === 1 ? "day in a row" : "days in a row"} />
-        <StatTile label="Words studied" value={String(totals.seen)} note={`${total - totals.seen} not seen yet`} />
+        <StatTile label="Day streak" value={fmt(streak)} note={streak === 1 ? "day in a row" : "days in a row"} />
+        <StatTile label="Words studied" value={fmt(totals.seen)} note={`${fmt(total - totals.seen)} not seen yet`} />
         <StatTile
           label="Accuracy"
           value={totals.accuracy === null ? "–" : `${totals.accuracy}%`}
-          note={`${totals.answers.toLocaleString()} answer${totals.answers === 1 ? "" : "s"}`}
+          note={`${fmt(totals.answers)} answer${totals.answers === 1 ? "" : "s"}`}
         />
-        <StatTile label="Saved words" value={String(Object.keys(saved).length)} note="bookmarked to review" />
+        <StatTile label="Saved words" value={fmt(Object.keys(saved).length)} note="bookmarked to review" />
       </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Breakdown
-          title="By word bank"
-          rows={byLesson}
-          onSelect={(key) => showWords({ lessons: [key] })}
-          selectHint="Show this lesson's words"
+          title="By difficulty"
+          firstColumn="Difficulty"
+          rows={byTier}
+          onSelect={(key) => showWords({ tiers: [key as Tier] })}
+          selectHint="Show these words"
         />
         <Breakdown
           title="By category"
+          firstColumn="Category"
           rows={byCategory}
-          onSelect={(key) => showWords({ categories: [key as Word["category"]] })}
+          onSelect={(key) => showWords({ categories: [key as Category] })}
           selectHint="Show this category's words"
         />
       </div>
+
+      <Breakdown
+        title="By word bank"
+        firstColumn="Word bank"
+        rows={byLesson}
+        onSelect={(key) => showWords({ lessons: [key] })}
+        selectHint="Show this word bank"
+        columns
+        controls={
+          <div role="radiogroup" aria-label="Difficulty" onKeyDown={onRadioGroupKeyDown} className="inline-flex rounded-full bg-surface-2 p-1">
+            {TIERS.map((t) => {
+              const selected = bankTier === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => setBankTier(t)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-sm font-semibold whitespace-nowrap transition-colors",
+                    selected ? "bg-surface text-ink shadow-sm dark:bg-brand-soft dark:text-brand-text dark:ring-1 dark:ring-brand" : "text-muted hover:text-ink",
+                  )}
+                >
+                  {TIER_INFO[t].short}
+                </button>
+              );
+            })}
+          </div>
+        }
+      />
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="missed-title">
@@ -159,8 +222,8 @@ export function ProgressView() {
             {missed.length > 0 && (
               <button
                 type="button"
-                onClick={() => showWords({ sort: "missed", mastery: ["learning", "almost"] })}
-                className="text-sm font-semibold text-brand-text hover:underline"
+                onClick={() => showWords({ sort: "missed" })}
+                className="-my-1.5 -mr-2 rounded-full px-3 py-1.5 text-sm font-semibold text-brand-text hover:bg-surface-2"
               >
                 Review in list
               </button>
@@ -171,8 +234,7 @@ export function ProgressView() {
               {missed.map(({ w, p }) => (
                 <li key={w.id} className="flex items-center justify-between gap-3 py-2.5">
                   <span className="min-w-0">
-                    <span className="font-semibold">{w.word}</span>{" "}
-                    <span className="text-[15px] text-muted">{w.synonym}</span>
+                    <span className="font-semibold">{w.word}</span> <span className="text-[15px] text-muted">{w.synonym}</span>
                   </span>
                   <span className="shrink-0 text-sm text-muted tabular-nums">
                     {p.wrong} missed · {p.correct} right
@@ -194,19 +256,19 @@ export function ProgressView() {
               {[...history]
                 .reverse()
                 .slice(0, 8)
-                .map((h) => (
-                  <li key={h.t} className="flex items-center justify-between gap-3 py-2.5">
+                .map((h, i) => (
+                  <li key={`${h.t}-${i}`} className="flex items-center justify-between gap-3 py-2.5">
                     <span className="min-w-0">
                       <span className="block font-semibold">{MODE_LABEL[h.mode]}</span>
                       <span className="block text-sm text-muted">
-                        {new Date(h.t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                        {new Date(h.t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                       </span>
                     </span>
                     <span className="shrink-0 text-right tabular-nums">
                       <span className="block font-semibold">
                         {h.correct}/{h.total}
                       </span>
-                      <span className="block text-sm text-muted">{Math.round((h.correct / h.total) * 100)}%</span>
+                      <span className="block text-sm text-muted">{h.total ? `${Math.round((h.correct / h.total) * 100)}%` : "–"}</span>
                     </span>
                   </li>
                 ))}
@@ -232,14 +294,11 @@ function StatTile({ label, value, note }: { label: string; value: string; note: 
   );
 }
 
-function StackedBar({ counts, total, label, tall = false }: { counts: Counts; total: number; label: string; tall?: boolean }) {
-  const summary = LEVELS.map((l) => `${LEVEL_LABEL[l]} ${counts[l]}`).join(", ");
+function StackedBar({ counts, label, tall = false }: { counts: Counts; label: string; tall?: boolean }) {
+  const total = LEVELS.reduce((sum, l) => sum + counts[l], 0);
+  const summary = STACK.map((l) => `${LEVEL_LABEL[l]} ${counts[l]}`).join(", ");
   return (
-    <div
-      role="img"
-      aria-label={`${label}: ${summary}`}
-      className={cn("flex w-full gap-[2px]", tall ? "h-6" : "h-3")}
-    >
+    <div role="img" aria-label={`${label}: ${summary}`} className={cn("flex w-full gap-[2px]", tall ? "h-6" : "h-3")}>
       {STACK.filter((l) => counts[l] > 0).map((l) => (
         <div
           key={l}
@@ -247,7 +306,7 @@ function StackedBar({ counts, total, label, tall = false }: { counts: Counts; to
           style={{ flexGrow: counts[l], flexBasis: 0, minWidth: 3 }}
         >
           <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 rounded-lg bg-ink px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-bg shadow-lg group-hover:block">
-            {LEVEL_LABEL[l]}: {counts[l]} ({Math.round((counts[l] / total) * 100)}%)
+            {LEVEL_LABEL[l]}: {fmt(counts[l])} ({Math.round((counts[l] / total) * 100)}%)
           </span>
         </div>
       ))}
@@ -262,7 +321,7 @@ function Legend({ counts, total }: { counts: Counts; total: number }) {
         <li key={l} className="inline-flex items-center gap-2">
           <span className={cn("size-2.5 rounded-sm", l === "new" ? "bg-surface-3 ring-1 ring-line ring-inset" : LEVEL_STYLE[l].bar)} aria-hidden />
           <span className="text-muted">{LEVEL_LABEL[l]}</span>
-          <span className="font-semibold tabular-nums">{counts[l]}</span>
+          <span className="font-semibold tabular-nums">{fmt(counts[l])}</span>
           <span className="text-sm text-faint tabular-nums">{Math.round((counts[l] / total) * 100)}%</span>
         </li>
       ))}
@@ -272,36 +331,48 @@ function Legend({ counts, total }: { counts: Counts; total: number }) {
 
 function Breakdown({
   title,
+  firstColumn,
   rows,
   onSelect,
   selectHint,
+  controls,
+  columns = false,
 }: {
   title: string;
-  rows: { key: string; label: string; counts: Counts; swatch?: string }[];
+  firstColumn: string;
+  rows: Row[];
   onSelect: (key: string) => void;
   selectHint: string;
+  controls?: React.ReactNode;
+  columns?: boolean;
 }) {
   const [table, setTable] = useState(false);
   return (
     <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6" aria-label={title}>
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-bold">{title}</h2>
-        <button
-          type="button"
-          aria-pressed={table}
-          onClick={() => setTable((t) => !t)}
-          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-muted hover:bg-surface-2 hover:text-ink"
-        >
-          <Table2 className="size-4" aria-hidden />
-          {table ? "Show bars" : "Show table"}
-        </button>
+        <div className="flex items-center gap-2">
+          {controls}
+          <button
+            type="button"
+            aria-pressed={table}
+            onClick={() => setTable((t) => !t)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold hover:bg-surface-2 hover:text-ink",
+              table ? "text-ink" : "text-muted",
+            )}
+          >
+            <Table2 className="size-4" aria-hidden />
+            Table view
+          </button>
+        </div>
       </div>
       {table ? (
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-left text-sm tabular-nums">
             <thead className="text-muted">
               <tr>
-                <th className="py-2 pr-3 font-semibold">{title.replace("By ", "")}</th>
+                <th className="py-2 pr-3 font-semibold">{firstColumn}</th>
                 {STACK.map((l) => (
                   <th key={l} className="px-2 py-2 text-right font-semibold">
                     {LEVEL_LABEL[l]}
@@ -315,7 +386,7 @@ function Breakdown({
                   <th className="py-2 pr-3 font-medium whitespace-nowrap">{r.label}</th>
                   {STACK.map((l) => (
                     <td key={l} className="px-2 py-2 text-right">
-                      {r.counts[l]}
+                      {fmt(r.counts[l])}
                     </td>
                   ))}
                 </tr>
@@ -324,7 +395,7 @@ function Breakdown({
           </table>
         </div>
       ) : (
-        <ul className="mt-3 space-y-1">
+        <ul className={cn("mt-3 gap-x-6 gap-y-1", columns ? "grid lg:grid-cols-2" : "space-y-1")}>
           {rows.map((r) => {
             const total = LEVELS.reduce((sum, l) => sum + r.counts[l], 0);
             return (
@@ -333,15 +404,15 @@ function Breakdown({
                   type="button"
                   onClick={() => onSelect(r.key)}
                   title={selectHint}
-                  className="grid w-full grid-cols-[8.5rem_1fr_auto] items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-surface-2 sm:grid-cols-[10rem_1fr_auto]"
+                  className="grid w-full grid-cols-[9.5rem_1fr_4rem] items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-surface-2 sm:grid-cols-[10.5rem_1fr_4.5rem]"
                 >
                   <span className="flex min-w-0 items-center gap-2 text-[15px] font-medium">
                     {r.swatch && <span className={cn("size-2 shrink-0 rounded-full", r.swatch)} aria-hidden />}
                     <span className="truncate">{r.label}</span>
                   </span>
-                  <StackedBar counts={r.counts} total={total} label={r.label} />
-                  <span className="text-sm text-muted tabular-nums">
-                    <span className="font-semibold text-ink">{r.counts.mastered}</span>/{total}
+                  <StackedBar counts={r.counts} label={r.label} />
+                  <span className="text-right text-sm text-muted tabular-nums">
+                    <span className="font-semibold text-ink">{fmt(r.counts.mastered)}</span>/{fmt(total)}
                   </span>
                 </button>
               </li>
@@ -363,16 +434,29 @@ function DataControls() {
     const a = document.createElement("a");
     a.href = url;
     a.download = `sat-vocab-progress-${dayKey(new Date())}.json`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
-    setMessage("Progress file downloaded.");
+    a.remove();
+    // Safari needs the URL to outlive the click briefly.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    setMessage("Progress file saved.");
   };
 
   const upload = async (file: File | undefined) => {
     if (!file) return;
-    const ok = importState(await file.text());
-    setMessage(ok ? "Progress imported." : "That file isn't a SAT Vocab progress export.");
+    const preview = previewImport(await file.text());
     if (fileRef.current) fileRef.current.value = "";
+    if (!preview) {
+      setMessage("That file isn't a SAT Vocab progress export.");
+      return;
+    }
+    const from = preview.exportedAt ? ` from ${new Date(preview.exportedAt).toLocaleDateString("en-US")}` : "";
+    const ok = window.confirm(
+      `Replace your current progress with this file${from}? It has ${preview.studied} studied and ${preview.saved} saved words. This can't be undone.`,
+    );
+    if (!ok) return;
+    applyImport(preview);
+    setMessage("Progress imported.");
   };
 
   return (
@@ -380,9 +464,7 @@ function DataControls() {
       <h2 id="data-title" className="font-bold">
         Your data
       </h2>
-      <p className="mt-1 text-[15px] text-muted">
-        Progress is saved in this browser only. Export a file to back it up or move it to another device.
-      </p>
+      <p className="mt-1 text-[15px] text-muted">Progress is saved in this browser only. Export a file to back it up or move it to another device.</p>
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"

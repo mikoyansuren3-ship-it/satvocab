@@ -1,5 +1,6 @@
 "use client";
 
+import type { KeyboardEvent } from "react";
 import { Bookmark } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { LEVEL_LABEL, LEVEL_STYLE, type Level } from "@/lib/mastery";
@@ -64,9 +65,11 @@ export function SaveButton({
     <button
       type="button"
       onClick={() => toggleSaved(id)}
+      // Clicking shouldn't move focus here, so Space/Enter keep driving the session.
+      onMouseDown={(e) => e.preventDefault()}
       aria-pressed={saved}
-      aria-label={saved ? `Remove ${word} from saved words` : `Save ${word}`}
-      title={saved ? "Saved" : "Save word"}
+      aria-label={`Save ${word}`}
+      title={saved ? "Saved (click to remove)" : "Save word"}
       className={cn(
         "grid size-9 shrink-0 place-items-center rounded-full transition-colors hover:bg-surface-3",
         saved ? "text-brand-text" : "text-muted",
@@ -113,4 +116,24 @@ export function ProgressBar({ value, max, label }: { value: number; max: number;
       <div className="h-full rounded-full bg-brand transition-[width] duration-300" style={{ width: `${pct}%` }} />
     </div>
   );
+}
+
+const RADIO_KEYS = ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", "Home", "End"];
+
+/**
+ * Arrow-key navigation for a role="radiogroup" container: moves focus and
+ * selection together. Pair with tabIndex={checked ? 0 : -1} on each radio.
+ */
+export function onRadioGroupKeyDown(e: KeyboardEvent<HTMLElement>) {
+  if (!RADIO_KEYS.includes(e.key)) return;
+  const radios = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]'));
+  const current = radios.indexOf(document.activeElement as HTMLElement);
+  if (current < 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const n = radios.length;
+  const forward = e.key === "ArrowRight" || e.key === "ArrowDown";
+  const next = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (current + (forward ? 1 : -1) + n) % n;
+  radios[next].focus();
+  radios[next].click();
 }

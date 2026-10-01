@@ -8,7 +8,7 @@
   --line: #e5e5e3;
   --ink: #1a1a19;
   --muted: #5c5c58;
-  --faint: #a3a39e;
+  --faint: #737370;
   --brand: #15803d;
   --brand-hover: #166534;
   --brand-soft: #dcfce7;
@@ -26,7 +26,7 @@
     --line: #2d2d2a;
     --ink: #f3f3f1;
     --muted: #a8a8a2;
-    --faint: #6f6f6a;
+    --faint: #8f8f89;
     --brand: #15803d;
     --brand-hover: #16a34a;
     --brand-soft: #052e16;
@@ -53,21 +53,23 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
-body {
-  background: var(--bg);
-  color: var(--ink);
-}
+@layer base {
+  body {
+    background: var(--bg);
+    color: var(--ink);
+  }
 
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
 
-button:not(:disabled),
-[role="button"]:not([aria-disabled="true"]) {
-  cursor: pointer;
-}
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
 
-dialog::backdrop {
-  background: rgb(0 0 0 / 0.45);
+  dialog::backdrop {
+    background: rgb(0 0 0 / 0.45);
+  }
 }

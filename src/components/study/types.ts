@@ -1,14 +1,6 @@
 import type { StudyMode } from "@/lib/store";
 
-export interface SessionResult {
-  mode: StudyMode;
-  /** Every word in the session, in the order it was shown. */
-  ids: string[];
-  /** Words answered (or graded) so far; less than ids.length if ended early. */
-  answered: number;
-  correct: number;
-  missed: string[];
-}
+export type { SessionProgress, SessionResult } from "@/lib/session";
 
 export const MODE_LABEL: Record<StudyMode, string> = {
   flashcards: "Flashcards",
@@ -17,9 +9,9 @@ export const MODE_LABEL: Record<StudyMode, string> = {
   "quiz-mixed": "Mixed quiz",
 };
 
-/** True when a key press should be left alone (typing, modifiers, or activating a focused button). */
+/** True when a key press should be left alone (typing, modifiers, held keys, or activating a focused control). */
 export function ignoreKey(e: KeyboardEvent): boolean {
-  if (e.metaKey || e.ctrlKey || e.altKey) return true;
+  if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return true;
   const target = e.target as HTMLElement | null;
   if (target?.closest("input, textarea, select, [contenteditable], dialog")) return true;
   if ((e.key === " " || e.key === "Enter") && target?.closest("button, a")) return true;

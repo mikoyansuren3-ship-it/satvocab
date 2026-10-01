@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { DEFAULT_FILTERS, SAVED_OPTIONS, SORT_OPTIONS, type Filters } from "./filters";
 import { LEVELS, MAX_BOX, nextProgress, type WordProgress } from "./mastery";
-import { CATEGORIES, LESSONS, POS_OPTIONS, WORD_BY_ID } from "./words";
+import { CATEGORIES, LESSONS, POS_OPTIONS, TIERS, WORD_BY_ID } from "./words";
 
 export type StudyMode = "flashcards" | "quiz-word" | "quiz-def" | "quiz-mixed";
 
@@ -83,6 +83,7 @@ function sanitize(input: unknown): AppState {
   const f = isObject(input.filters) ? input.filters : {};
   const filters: Filters = {
     mastery: pick(LEVELS, f.mastery),
+    tiers: pick(TIERS, f.tiers),
     lessons: pick(LESSONS, f.lessons),
     categories: pick(CATEGORIES, f.categories),
     pos: pick(
@@ -106,12 +107,16 @@ function sanitize(input: unknown): AppState {
     ? input.history
         .filter(isObject)
         .filter((h) => MODES.includes(h.mode as StudyMode))
-        .map((h) => ({
-          t: num(h.t),
-          mode: h.mode as StudyMode,
-          total: Math.max(0, num(h.total)),
-          correct: Math.max(0, num(h.correct)),
-        }))
+        .map((h) => {
+          const total = Math.max(0, Math.round(num(h.total)));
+          return {
+            t: num(h.t),
+            mode: h.mode as StudyMode,
+            total,
+            correct: Math.min(total, Math.max(0, Math.round(num(h.correct)))),
+          };
+        })
+        .filter((h) => h.t > 0 && h.total > 0)
         .slice(-100)
     : [];
 
@@ -246,15 +251,31 @@ export function exportState(): string {
   return JSON.stringify({ app: "sat-vocab", version: 1, exportedAt: new Date().toISOString(), ...state }, null, 1);
 }
 
-/** Replaces progress, saved words and history with an exported file. */
-export function importState(text: string): boolean {
+export interface ImportPreview {
+  state: AppState;
+  exportedAt: string | null;
+  studied: number;
+  saved: number;
+}
+
+/** Parses an exported progress file; null if it isn't one. */
+export function previewImport(text: string): ImportPreview | null {
   try {
     const parsed: unknown = JSON.parse(text);
-    if (!isObject(parsed) || (!isObject(parsed.progress) && !isObject(parsed.saved))) return false;
+    if (!isObject(parsed) || parsed.app !== "sat-vocab") return null;
     const next = sanitize(parsed);
-    update((s) => ({ ...next, filters: s.filters, study: s.study }));
-    return true;
+    return {
+      state: next,
+      exportedAt: typeof parsed.exportedAt === "string" ? parsed.exportedAt : null,
+      studied: Object.keys(next.progress).length,
+      saved: Object.keys(next.saved).length,
+    };
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** Replaces progress, saved words, history and streak with an imported file (filters and study settings stay). */
+export function applyImport(preview: ImportPreview) {
+  update((s) => ({ ...preview.state, filters: s.filters, study: s.study }));
 }

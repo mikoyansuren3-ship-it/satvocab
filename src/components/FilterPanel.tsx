@@ -13,16 +13,37 @@ import {
 } from "@/lib/filters";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE } from "@/lib/mastery";
 import { clearFilters, setFilters, useAppState } from "@/lib/store";
-import { CATEGORIES, CATEGORY_STYLE, LESSONS, POS_OPTIONS, WORDS } from "@/lib/words";
+import {
+  CATEGORIES,
+  CATEGORY_STYLE,
+  LESSONS_BY_TIER,
+  POS_OPTIONS,
+  TIERS,
+  TIER_INFO,
+  WORDS,
+  bankLabel,
+  tierOf,
+  type Tier,
+} from "@/lib/words";
+import { onRadioGroupKeyDown } from "./bits";
 
 function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
-export function FilterPanel({ onDone }: { onDone?: () => void }) {
+const POS_IN_DATA = POS_OPTIONS.filter((o) => WORDS.some((w) => w.pos === o.value));
+
+export function FilterPanel({ onDone, doneLabel = "Done" }: { onDone?: () => void; doneLabel?: string }) {
   const { filters: f, progress, saved } = useAppState();
   const counts = useMemo(() => facetCounts(WORDS, f, { progress, saved }), [f, progress, saved]);
   const set = (patch: Partial<Filters>) => setFilters(patch);
+
+  const toggleTier = (tier: Tier) => {
+    const tiers = toggle(f.tiers, tier);
+    // Drop word banks from levels that are no longer selected.
+    set({ tiers, lessons: tiers.length ? f.lessons.filter((l) => tiers.includes(tierOf(l))) : f.lessons });
+  };
+  const visibleTiers = f.tiers.length ? TIERS.filter((t) => f.tiers.includes(t)) : TIERS;
 
   return (
     <div className="overflow-hidden rounded-3xl border border-line bg-surface">
@@ -56,19 +77,36 @@ export function FilterPanel({ onDone }: { onDone?: () => void }) {
         </OptionGroup>
       </Section>
 
-      <Section label="Word bank" summary={summarize.lessons(f)}>
-        <OptionGroup label="Word bank">
-          {LESSONS.map((lesson) => (
+      <Section label="Difficulty" summary={summarize.tiers(f)}>
+        <OptionGroup label="Difficulty">
+          {TIERS.map((tier) => (
             <Option
-              key={lesson}
+              key={tier}
               kind="checkbox"
-              checked={f.lessons.includes(lesson)}
-              onSelect={() => set({ lessons: toggle(f.lessons, lesson) })}
-              label={`Lesson ${lesson}`}
-              count={counts.lessons[lesson]}
+              checked={f.tiers.includes(tier)}
+              onSelect={() => toggleTier(tier)}
+              label={TIER_INFO[tier].label}
+              hint={TIER_INFO[tier].banks}
+              count={counts.tiers[tier]}
             />
           ))}
         </OptionGroup>
+      </Section>
+
+      <Section label="Word bank" summary={summarize.lessons(f)}>
+        <div className="space-y-1">
+          {visibleTiers.map((tier) => (
+            <BankGroup
+              // Remount when a level becomes the only one shown, so it opens.
+              key={`${tier}-${visibleTiers.length === 1}`}
+              tier={tier}
+              selected={f.lessons}
+              counts={counts.lessons}
+              defaultOpen={visibleTiers.length === 1 || f.lessons.some((l) => tierOf(l) === tier)}
+              onToggle={(lesson) => set({ lessons: toggle(f.lessons, lesson) })}
+            />
+          ))}
+        </div>
       </Section>
 
       <Section label="Category" summary={summarize.categories(f)}>
@@ -89,7 +127,7 @@ export function FilterPanel({ onDone }: { onDone?: () => void }) {
 
       <Section label="Part of speech" summary={summarize.pos(f)}>
         <OptionGroup label="Part of speech">
-          {POS_OPTIONS.filter((o) => WORDS.some((w) => w.pos === o.value)).map((o) => (
+          {POS_IN_DATA.map((o) => (
             <Option
               key={o.value}
               kind="checkbox"
@@ -120,13 +158,7 @@ export function FilterPanel({ onDone }: { onDone?: () => void }) {
       <Section label="Sort" summary={summarize.sort(f)}>
         <OptionGroup label="Sort" radio>
           {SORT_OPTIONS.map((o) => (
-            <Option
-              key={o.value}
-              kind="radio"
-              checked={f.sort === o.value}
-              onSelect={() => set({ sort: o.value })}
-              label={o.label}
-            />
+            <Option key={o.value} kind="radio" checked={f.sort === o.value} onSelect={() => set({ sort: o.value })} label={o.label} />
           ))}
         </OptionGroup>
       </Section>
@@ -145,7 +177,7 @@ export function FilterPanel({ onDone }: { onDone?: () => void }) {
             onClick={onDone}
             className="flex-1 rounded-full bg-brand py-2.5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-hover"
           >
-            Show words
+            {doneLabel}
           </button>
         )}
       </div>
@@ -190,7 +222,12 @@ function Section({
 
 function OptionGroup({ label, radio = false, children }: { label: string; radio?: boolean; children: ReactNode }) {
   return (
-    <div role={radio ? "radiogroup" : "group"} aria-label={label} className="space-y-0.5">
+    <div
+      role={radio ? "radiogroup" : "group"}
+      aria-label={label}
+      onKeyDown={radio ? onRadioGroupKeyDown : undefined}
+      className="space-y-0.5"
+    >
       {children}
     </div>
   );
@@ -201,6 +238,7 @@ function Option({
   checked,
   onSelect,
   label,
+  hint,
   count,
   swatch,
 }: {
@@ -208,6 +246,7 @@ function Option({
   checked: boolean;
   onSelect: () => void;
   label: string;
+  hint?: string;
   count?: number;
   swatch?: string;
 }) {
@@ -216,22 +255,103 @@ function Option({
       type="button"
       role={kind}
       aria-checked={checked}
+      tabIndex={kind === "radio" && !checked ? -1 : 0}
       onClick={onSelect}
       className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left text-[15px] transition-colors hover:bg-surface-2"
     >
       <span
         className={cn(
-          "grid size-5 shrink-0 place-items-center rounded-full border-2 transition-colors",
-          checked ? "border-brand bg-brand text-white" : "border-brand/70",
+          "grid size-5 shrink-0 place-items-center border-2 transition-colors",
+          kind === "checkbox" ? "rounded-md" : "rounded-full",
+          checked ? "border-brand bg-brand text-white" : "border-brand dark:border-brand-text",
         )}
         aria-hidden
       >
         {checked && (kind === "checkbox" ? <Check className="size-3" strokeWidth={3.5} /> : <span className="size-2 rounded-full bg-white" />)}
       </span>
       {swatch && <span className={cn("size-2 shrink-0 rounded-full", swatch)} aria-hidden />}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {count !== undefined && <span className="tabular-nums text-sm text-muted">{count}</span>}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate">{label}</span>
+        {hint && <span className="block truncate text-sm text-muted">{hint}</span>}
+      </span>
+      {count !== undefined && (
+        <span className="text-sm text-muted tabular-nums">
+          <span className="sr-only">, </span>
+          {count}
+          <span className="sr-only"> words</span>
+        </span>
+      )}
     </button>
+  );
+}
+
+function BankGroup({
+  tier,
+  selected,
+  counts,
+  defaultOpen,
+  onToggle,
+}: {
+  tier: Tier;
+  selected: string[];
+  counts: Record<string, number>;
+  defaultOpen: boolean;
+  onToggle: (lesson: string) => void;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const id = useId();
+  const banks = LESSONS_BY_TIER[tier];
+  const picked = banks.filter((l) => selected.includes(l)).length;
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 rounded-xl px-2 py-2 text-left hover:bg-surface-2"
+      >
+        <span className="min-w-0">
+          <span className="block text-[15px] font-semibold">{TIER_INFO[tier].label}</span>
+          <span className="block text-sm text-muted">{TIER_INFO[tier].banks}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2 text-sm text-muted">
+          {picked > 0 && <span className="font-semibold text-brand-text">{picked} selected</span>}
+          <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} aria-hidden />
+        </span>
+      </button>
+      <div id={id} hidden={!open} className="px-1 pt-1 pb-2">
+        {tier === "low" && (
+          <p className="mb-2 px-1 text-sm text-muted">
+            The source doesn’t split this list into lessons, so these sets of about 30 follow its order of difficulty.
+          </p>
+        )}
+        <div role="group" aria-label={`${TIER_INFO[tier].label} word banks`} className="grid grid-cols-5 gap-1.5">
+          {banks.map((lesson) => {
+            const checked = selected.includes(lesson);
+            const count = counts[lesson] ?? 0;
+            return (
+              <button
+                key={lesson}
+                type="button"
+                role="checkbox"
+                aria-checked={checked}
+                aria-label={`${bankLabel(lesson)}, ${count} words`}
+                onClick={() => onToggle(lesson)}
+                className={cn(
+                  "flex flex-col items-center rounded-lg border py-1.5 text-sm leading-tight font-semibold tabular-nums transition-colors",
+                  checked ? "border-brand bg-brand text-white" : "border-line hover:bg-surface-2",
+                  !checked && count === 0 && "opacity-50",
+                )}
+              >
+                {lesson}
+                <span className={cn("text-[11px] font-medium", checked ? "text-white/85" : "text-muted")}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -246,7 +366,7 @@ export function FilterAside() {
   );
 }
 
-export function MobileFilterButton({ className }: { className?: string }) {
+export function MobileFilterButton({ className, doneLabel }: { className?: string; doneLabel?: string }) {
   const [open, setOpen] = useState(false);
   const { filters } = useAppState();
   const active = activeFilterCount(filters);
@@ -255,6 +375,7 @@ export function MobileFilterButton({ className }: { className?: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
         className={cn(
           "inline-flex shrink-0 items-center gap-2 rounded-full border border-line bg-surface px-4 py-2.5 text-[15px] font-semibold hover:bg-surface-2 lg:hidden",
           className,
@@ -263,33 +384,40 @@ export function MobileFilterButton({ className }: { className?: string }) {
         <SlidersHorizontal className="size-4" aria-hidden />
         Filters
         {active > 0 && (
-          <span className="grid min-w-5 place-items-center rounded-full bg-brand px-1.5 text-xs text-white">{active}</span>
+          <span className="grid min-w-5 place-items-center rounded-full bg-brand px-1.5 text-xs text-white">
+            {active}
+            <span className="sr-only"> active</span>
+          </span>
         )}
       </button>
-      {open && <FilterSheet onClose={() => setOpen(false)} />}
+      {open && <FilterSheet onClosed={() => setOpen(false)} doneLabel={doneLabel} />}
     </>
   );
 }
 
-function FilterSheet({ onClose }: { onClose: () => void }) {
+function FilterSheet({ onClosed, doneLabel }: { onClosed: () => void; doneLabel?: string }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const dialog = ref.current;
-    if (!dialog) return;
-    dialog.showModal();
-    return () => dialog.close();
+    if (dialog && !dialog.open) dialog.showModal();
   }, []);
+  // Close through the dialog itself so focus returns to the Filters button.
+  const dismiss = () => ref.current?.close();
   return (
     <dialog
       ref={ref}
       aria-label="Filters"
-      onClose={onClose}
+      onClose={() => {
+        // React StrictMode re-runs effects in development; ignore stray close events.
+        if (ref.current?.open) return;
+        onClosed();
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) dismiss();
       }}
       className="m-0 mt-auto max-h-[88vh] w-full max-w-none overflow-y-auto rounded-t-3xl bg-transparent p-2 text-ink sm:mx-auto sm:mb-auto sm:max-w-md sm:rounded-3xl"
     >
-      <FilterPanel onDone={onClose} />
+      <FilterPanel onDone={dismiss} doneLabel={doneLabel} />
     </dialog>
   );
 }
