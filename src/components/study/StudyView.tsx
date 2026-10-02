@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { Layers, ListChecks, Play, Shuffle, SpellCheck, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { describeFilters, filterWords, summarize } from "@/lib/filters";
@@ -343,45 +342,6 @@ export function StudyView() {
             </button>
           </div>
         </section>
-
-        <div className="grid gap-5 md:grid-cols-2">
-          <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6">
-            <h2 className="font-bold">How mastery works</h2>
-            <p className="mt-2 text-[15px] text-muted">Every right answer (or “Got it”) moves a word up one step; a miss moves it down two.</p>
-            <ul className="mt-3 space-y-1.5 text-[15px]">
-              <li className="flex items-center gap-2">
-                <span className={cn("size-2 rounded-full", LEVEL_STYLE.learning.dot)} aria-hidden />
-                <strong>Learning</strong> <span className="text-muted">studied, 0 to 1 steps</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className={cn("size-2 rounded-full", LEVEL_STYLE.almost.dot)} aria-hidden />
-                <strong>Almost there</strong> <span className="text-muted">2 to 3 steps</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className={cn("size-2 rounded-full", LEVEL_STYLE.mastered.dot)} aria-hidden />
-                <strong>Mastered</strong> <span className="text-muted">4 or more steps</span>
-              </li>
-            </ul>
-          </section>
-          <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6">
-            <h2 className="font-bold">Tips</h2>
-            <ul className="mt-2 list-disc space-y-1.5 pl-5 text-[15px] text-muted">
-              <li>Start with High frequency: those words show up on the SAT most often.</li>
-              <li>“Weakest first” puts the words you’ve missed ahead of new ones.</li>
-              <li>Pick a word bank to work through one lesson at a time.</li>
-              <li>
-                Bookmark tricky words, then filter to <em>Saved only</em>.
-              </li>
-              <li>
-                Browse and search every word on the{" "}
-                <Link href="/words" className="font-semibold text-brand-text underline underline-offset-2">
-                  All words
-                </Link>{" "}
-                tab.
-              </li>
-            </ul>
-          </section>
-        </div>
       </div>
     </div>
   );
