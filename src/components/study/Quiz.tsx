@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, CircleCheck, CircleX, X } from "lucide-react";
+import { ArrowRight, CircleCheck, CircleX, Pause, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { levelOf } from "@/lib/mastery";
 import type { Question } from "@/lib/quiz";
@@ -18,6 +18,7 @@ export function Quiz({
   questions,
   resume,
   onProgress,
+  onPause,
   onExit,
   onDone,
 }: {
@@ -25,6 +26,8 @@ export function Quiz({
   questions: Question[];
   resume?: SessionProgress | null;
   onProgress: (p: SessionProgress) => void;
+  /** Sets the session aside to finish later, from where it stands now. */
+  onPause: (p: SessionProgress) => void;
   onExit: () => void;
   onDone: (result: SessionResult) => void;
 }) {
@@ -70,6 +73,8 @@ export function Quiz({
   };
 
   const end = () => (right.length + missed.length ? finish(right, missed) : onExit());
+  // An answered question counts as done, the same as for a reload.
+  const pause = () => onPause({ index: answered ? index + 1 : index, right, missed });
 
   useEffect(() => {
     promptRef.current?.focus({ preventScroll: true });
@@ -96,6 +101,9 @@ export function Quiz({
         next();
       } else if (e.key === "Escape") {
         end();
+      } else if (k === "p") {
+        e.preventDefault();
+        pause();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -106,16 +114,27 @@ export function Quiz({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={end}
-          className="inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[15px] font-semibold text-muted hover:bg-surface-2 hover:text-ink"
-        >
-          <X className="size-4" aria-hidden />
-          End quiz
-        </button>
-        <span className="text-sm font-semibold tabular-nums text-muted">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={end}
+            aria-label="End quiz"
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[15px] font-semibold text-muted hover:bg-surface-2 hover:text-ink"
+          >
+            <X className="size-4" aria-hidden />
+            End<span className="hidden sm:inline"> quiz</span>
+          </button>
+          <button
+            type="button"
+            onClick={pause}
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[15px] font-semibold text-muted hover:bg-surface-2 hover:text-ink"
+          >
+            <Pause className="size-4" aria-hidden />
+            Pause
+          </button>
+        </div>
+        <span className="ml-auto text-sm font-semibold tabular-nums text-muted">
           Question {fmt(index + 1)} of {fmt(questions.length)}
           <span className="mx-2 text-faint">·</span>
           <span className="text-brand-text">{right.length} right</span>
@@ -258,7 +277,7 @@ export function Quiz({
         )}
       </div>
       <p className="mt-4 hidden text-center text-sm text-faint sm:block">
-        Press 1 to 4 (or A to D) to answer · Enter for the next question · Esc ends
+        Press 1 to 4 (or A to D) to answer · Enter for the next question · P pauses · Esc ends
       </p>
     </div>
   );

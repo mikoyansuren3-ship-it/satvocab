@@ -1,31 +1,45 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Layers, ListChecks, Play, Shuffle, SpellCheck, X } from "lucide-react";
+import { Layers, ListChecks, Pause, Play, Shuffle, SpellCheck, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { describeFilters, filterWords, summarize } from "@/lib/filters";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE, levelOf } from "@/lib/mastery";
 import { buildQuiz, shuffle } from "@/lib/quiz";
 import { flushProgress } from "@/lib/account";
 import {
+  fromPaused,
   recordRun,
   restoreSession,
   sessionCache,
   sessionIds,
   sessionMode,
   setSessionCache,
+  toPaused,
   type ActiveSession,
   type SessionProgress,
   type SessionResult,
 } from "@/lib/session";
 import { fmt } from "@/lib/format";
-import { clearFilters, setFilters, setStudy, useAppState, useHydrated, type StudyMode } from "@/lib/store";
+import {
+  MAX_PAUSED,
+  clearFilters,
+  closePaused,
+  pauseSession,
+  setFilters,
+  setStudy,
+  useAppState,
+  useHydrated,
+  type PausedSession,
+  type StudyMode,
+} from "@/lib/store";
 import { TIERS, TIER_INFO, WORDS, tierOf, type Tier } from "@/lib/words";
-import { onRadioGroupKeyDown } from "../bits";
+import { ProgressBar, onRadioGroupKeyDown } from "../bits";
 import { FilterAside, MobileFilterButton } from "../FilterPanel";
 import { Flashcards } from "./Flashcards";
 import { Quiz } from "./Quiz";
 import { SessionSummary } from "./SessionSummary";
+import { MODE_LABEL } from "./types";
 
 const MODES: { mode: StudyMode; title: string; blurb: string; icon: typeof Layers }[] = [
   { mode: "flashcards", title: "Flashcards", blurb: "Flip each card, then mark it “Got it” or “Still learning.”", icon: Layers },
@@ -35,6 +49,8 @@ const MODES: { mode: StudyMode; title: string; blurb: string; icon: typeof Layer
 ];
 
 const SIZES = [10, 20, 30, 50, 0];
+
+const when = (t: number) => new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 function sessionLength(active: ActiveSession): number {
   return active.kind === "flashcards" ? active.ids.length : active.questions.length;
@@ -73,13 +89,17 @@ export function StudyView() {
 }
 
 function Study({ canRestore }: { canRestore: boolean }) {
-  const { filters, progress, saved, study } = useAppState();
+  const { filters, progress, saved, study, paused } = useAppState();
   const pool = useMemo(() => filterWords(WORDS, filters, { progress, saved }), [filters, progress, saved]);
   const [initial] = useState(() => (canRestore ? restore() : NOTHING));
   const [active, setActive] = useState<ActiveSession | null>(initial.active);
   const [result, setResult] = useState<SessionResult | null>(initial.result);
+  // Where a session picks up mid-way: restored after a reload, or taken off the paused list.
+  const [resumed, setResumed] = useState(() => (initial.active ? { run: initial.active.run, progress: initial.progress } : null));
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const pausedRef = useRef<HTMLHeadingElement>(null);
   const focusTitle = useRef(false);
+  const focusPaused = useRef(false);
 
   useEffect(() => {
     // A quiz finished on another tab: make the cache match the summary shown.
@@ -87,7 +107,11 @@ function Study({ canRestore }: { canRestore: boolean }) {
   }, [initial]);
 
   useEffect(() => {
-    if (focusTitle.current && !active && !result) {
+    if (active || result) return;
+    if (focusPaused.current) {
+      focusPaused.current = false;
+      pausedRef.current?.focus();
+    } else if (focusTitle.current) {
       focusTitle.current = false;
       titleRef.current?.focus();
     }
@@ -133,8 +157,43 @@ function Study({ canRestore }: { canRestore: boolean }) {
     setResult(null);
   };
 
-  // Only the session that was restored on mount resumes mid-way.
-  const resume = active && active.run === initial.active?.run ? initial.progress : null;
+  const pause = (p: SessionProgress) => {
+    if (!active) return;
+    // Nothing left to come back to: show the results instead.
+    if (p.index >= sessionLength(active)) {
+      finish({ mode: sessionMode(active), ids: sessionIds(active), answered: p.right.length + p.missed.length, correct: p.right.length, missed: p.missed });
+      return;
+    }
+    pauseSession(toPaused(active, p));
+    setSessionCache({ active: null, progress: null, result: null });
+    void flushProgress();
+    focusPaused.current = true;
+    setActive(null);
+    setResult(null);
+    window.scrollTo({ top: 0 });
+  };
+
+  const resumePaused = (p: PausedSession) => {
+    const next = fromPaused(p);
+    closePaused(p.run);
+    setSessionCache({ active: next.active, progress: next.progress, result: null });
+    void flushProgress();
+    setResumed({ run: p.run, progress: next.progress });
+    setResult(null);
+    setActive(next.active);
+    window.scrollTo({ top: 0 });
+  };
+
+  const discardPaused = (p: PausedSession) => {
+    const done = `${fmt(p.index)} of ${fmt(p.ids.length)} done`;
+    if (!window.confirm(`Discard this paused session (${MODE_LABEL[p.mode]}, ${done})? Answers you already gave stay in your progress.`)) return;
+    closePaused(p.run);
+    void flushProgress();
+    // The button is gone now; keep focus nearby.
+    requestAnimationFrame(() => (pausedRef.current ?? titleRef.current)?.focus());
+  };
+
+  const resume = active && resumed?.run === active.run ? resumed.progress : null;
 
   if (active?.kind === "flashcards") {
     return (
@@ -144,6 +203,7 @@ function Study({ canRestore }: { canRestore: boolean }) {
         front={active.front}
         resume={resume}
         onProgress={saveProgress}
+        onPause={pause}
         onExit={backToSetup}
         onDone={finish}
       />
@@ -157,6 +217,7 @@ function Study({ canRestore }: { canRestore: boolean }) {
         questions={active.questions}
         resume={resume}
         onProgress={saveProgress}
+        onPause={pause}
         onExit={backToSetup}
         onDone={finish}
       />
@@ -186,6 +247,58 @@ function Study({ canRestore }: { canRestore: boolean }) {
     <div className="lg:flex lg:items-start lg:gap-6">
       <FilterAside />
       <div className="min-w-0 flex-1 space-y-5">
+        {paused.length > 0 && (
+          <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="paused-title">
+            <h2 id="paused-title" ref={pausedRef} tabIndex={-1} className="flex items-center gap-2 rounded-lg font-bold focus:outline-none">
+              <Pause className="size-4 text-muted" aria-hidden />
+              Paused sessions
+            </h2>
+            <ul className="mt-3 divide-y divide-line">
+              {[...paused].reverse().map((p) => {
+                const flash = p.mode === "flashcards";
+                const name = `${MODE_LABEL[p.mode]}, ${fmt(p.index)} of ${fmt(p.ids.length)} done`;
+                return (
+                  <li key={p.run} className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:gap-5">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold">{MODE_LABEL[p.mode]}</p>
+                      <p className="text-sm text-muted">
+                        {fmt(p.index)} of {fmt(p.ids.length)} {flash ? "cards" : "answered"} · {fmt(p.right.length)} {flash ? "known" : "right"} · paused{" "}
+                        {when(p.pausedAt)}
+                      </p>
+                      <div className="mt-2 max-w-xs">
+                        <ProgressBar value={p.index} max={p.ids.length} label={`${MODE_LABEL[p.mode]} progress`} />
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => resumePaused(p)}
+                        aria-label={`Resume ${name}`}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-[15px] font-semibold text-white transition-colors hover:bg-brand-hover"
+                      >
+                        <Play className="size-4" aria-hidden />
+                        Resume
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => discardPaused(p)}
+                        aria-label={`Discard ${name}`}
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-[15px] font-semibold text-muted hover:bg-surface-2 hover:text-ink"
+                      >
+                        <X className="size-4" aria-hidden />
+                        Discard
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {paused.length >= MAX_PAUSED && (
+              <p className="mt-3 text-sm text-muted">Up to {MAX_PAUSED} paused sessions are kept. Pausing another removes the oldest.</p>
+            )}
+          </section>
+        )}
+
         <section className="rounded-3xl border border-line bg-surface p-5 sm:p-7" aria-labelledby="study-title">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">

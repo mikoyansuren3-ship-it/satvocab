@@ -1,5 +1,5 @@
-import type { Question } from "./quiz";
-import { getOwner, recordSession, type StudyMode } from "./store";
+import { buildQuiz, type Question } from "./quiz";
+import { getOwner, pauseSession, recordSession, type PausedSession, type StudyMode } from "./store";
 import { WORD_BY_ID } from "./words";
 
 export type ActiveSession =
@@ -108,6 +108,36 @@ export const sessionIds = (a: ActiveSession): string[] => (a.kind === "flashcard
 /** Writes the session to history (or updates its entry) as soon as anything is answered. */
 export function recordRun(a: ActiveSession, answered: number, correct: number) {
   recordSession({ t: a.run, mode: sessionMode(a), total: answered, correct });
+}
+
+/** The record that saves a session in progress for later. */
+export function toPaused(a: ActiveSession, p: SessionProgress | null): PausedSession {
+  return {
+    run: a.run,
+    pausedAt: Date.now(),
+    mode: sessionMode(a),
+    ids: sessionIds(a),
+    front: a.kind === "flashcards" ? a.front : "word",
+    index: p?.index ?? 0,
+    right: p?.right ?? [],
+    missed: p?.missed ?? [],
+  };
+}
+
+/** Rebuilds a paused session to carry on with it (quiz choices are drawn fresh). */
+export function fromPaused(p: PausedSession): { active: ActiveSession; progress: SessionProgress } {
+  const active: ActiveSession =
+    p.mode === "flashcards"
+      ? { kind: "flashcards", run: p.run, ids: p.ids, front: p.front }
+      : { kind: "quiz", run: p.run, mode: p.mode, questions: buildQuiz(p.ids, p.mode) };
+  return { active, progress: { index: p.index, right: p.right, missed: p.missed } };
+}
+
+/** Sets aside the session on screen, if it's partway through (e.g. before "Study these" starts another). */
+export function pauseCurrentSession() {
+  const { active, progress } = sessionCache;
+  if (active && progress && progress.index > 0 && progress.index < sessionIds(active).length) pauseSession(toPaused(active, progress));
+  clearSession();
 }
 
 /** Makes the Study tab open on its setup next time (e.g. "Study these"). Answers are already in history. */

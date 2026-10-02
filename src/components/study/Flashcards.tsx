@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, RotateCcw, X } from "lucide-react";
+import { Check, Pause, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { recordAnswer, useAppState } from "@/lib/store";
 import { fmt } from "@/lib/format";
@@ -14,6 +14,7 @@ export function Flashcards({
   front,
   resume,
   onProgress,
+  onPause,
   onExit,
   onDone,
 }: {
@@ -21,6 +22,8 @@ export function Flashcards({
   front: "word" | "definition";
   resume?: SessionProgress | null;
   onProgress: (p: SessionProgress) => void;
+  /** Sets the session aside to finish later, from where it stands now. */
+  onPause: (p: SessionProgress) => void;
   onExit: () => void;
   onDone: (result: SessionResult) => void;
 }) {
@@ -60,6 +63,7 @@ export function Flashcards({
   };
 
   const end = () => (known.length + missed.length ? finish(known, missed) : onExit());
+  const pause = () => onPause({ index, right: known, missed });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -75,6 +79,9 @@ export function Flashcards({
         grade(true);
       } else if (e.key === "Escape") {
         end();
+      } else if (e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        pause();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -85,19 +92,32 @@ export function Flashcards({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={end}
-          className="inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[15px] font-semibold text-muted hover:bg-surface-2 hover:text-ink"
-        >
-          <X className="size-4" aria-hidden />
-          End session
-        </button>
-        <span className="text-sm font-semibold text-muted tabular-nums">
-          Card {fmt(index + 1)} of {fmt(ids.length)}
-        </span>
-        <SaveButton id={word.id} word={word.word} saved={Boolean(saved[word.id])} />
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={end}
+            aria-label="End session"
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[15px] font-semibold text-muted hover:bg-surface-2 hover:text-ink"
+          >
+            <X className="size-4" aria-hidden />
+            End<span className="hidden sm:inline"> session</span>
+          </button>
+          <button
+            type="button"
+            onClick={pause}
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[15px] font-semibold text-muted hover:bg-surface-2 hover:text-ink"
+          >
+            <Pause className="size-4" aria-hidden />
+            Pause
+          </button>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm font-semibold text-muted tabular-nums">
+            Card {fmt(index + 1)} of {fmt(ids.length)}
+          </span>
+          <SaveButton id={word.id} word={word.word} saved={Boolean(saved[word.id])} />
+        </div>
       </div>
       <div className="mt-2">
         <ProgressBar value={index} max={ids.length} label="Session progress" />
@@ -170,7 +190,7 @@ export function Flashcards({
         </button>
       </div>
       <p className="mt-4 hidden text-center text-sm text-faint sm:block">
-        1 or ← still learning · 2 or → got it · Esc ends
+        1 or ← still learning · 2 or → got it · P pauses · Esc ends
       </p>
     </div>
   );

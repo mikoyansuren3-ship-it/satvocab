@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 import { describeFilters, filterWords, isUnfiltered, type Filters } from "@/lib/filters";
 import { fmt } from "@/lib/format";
 import { LEVELS, LEVEL_LABEL, type Level, type WordProgress } from "@/lib/mastery";
-import { clearSession } from "@/lib/session";
+import { pauseCurrentSession } from "@/lib/session";
 import { clearFilters, setFilters, useAppState, useHydrated } from "@/lib/store";
 import { WORDS, type Word } from "@/lib/words";
 import { FilterAside, MobileFilterButton } from "../FilterPanel";
@@ -97,7 +97,7 @@ export function WordsView() {
           <button
             type="button"
             onClick={() => {
-              clearSession();
+              pauseCurrentSession();
               router.push("/");
             }}
             disabled={list.length === 0}

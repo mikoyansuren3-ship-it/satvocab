@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { clearSession } from "./session";
 import {
   LAST_USER_KEY,
+  MAX_PAUSED,
   getOwner,
   getState,
   onLocalChange,
@@ -112,6 +113,19 @@ export function mergeStates(remote: AppState, local: AppState): AppState {
     if (!other || h.total > other.total) sessions.set(key, h);
   }
   const history = [...sessions.values()].sort((a, b) => a.t - b.t).slice(-100);
+  // Paused sessions: keep the latest pause of each, unless it was resumed or discarded after that.
+  const closedAt = new Map<number, number>();
+  for (const c of [...remote.closed, ...local.closed]) closedAt.set(c.run, Math.max(c.at, closedAt.get(c.run) ?? 0));
+  const pausedByRun = new Map<number, AppState["paused"][number]>();
+  for (const p of [...remote.paused, ...local.paused]) {
+    const other = pausedByRun.get(p.run);
+    if (!other || p.pausedAt > other.pausedAt) pausedByRun.set(p.run, p);
+  }
+  const paused = [...pausedByRun.values()]
+    .filter((p) => (closedAt.get(p.run) ?? 0) < p.pausedAt)
+    .sort((a, b) => a.pausedAt - b.pausedAt)
+    .slice(-MAX_PAUSED);
+  const closed = [...closedAt].map(([run, at]) => ({ run, at })).sort((a, b) => a.at - b.at).slice(-50);
   const days = Array.from(new Set([...remote.days, ...local.days]))
     .sort()
     .slice(-730);
@@ -122,6 +136,8 @@ export function mergeStates(remote: AppState, local: AppState): AppState {
     study: local.study,
     history,
     days,
+    paused,
+    closed,
   };
 }
 

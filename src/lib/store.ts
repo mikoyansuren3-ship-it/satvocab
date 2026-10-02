@@ -23,6 +23,28 @@ export interface SessionRecord {
   correct: number;
 }
 
+/** A session put aside to finish later. Saved with progress, so it follows the account to other devices. */
+export interface PausedSession {
+  /** When the session started; matches its history entry. */
+  run: number;
+  pausedAt: number;
+  mode: StudyMode;
+  /** Every word in the session, in the order shown. */
+  ids: string[];
+  /** Which side flashcards show first. */
+  front: "word" | "definition";
+  /** How many words were answered (they come first in ids). */
+  index: number;
+  right: string[];
+  missed: string[];
+}
+
+/** A paused session that was resumed or discarded, so an older synced copy can't bring it back. */
+export interface ClosedSession {
+  run: number;
+  at: number;
+}
+
 export interface AppState {
   progress: Record<string, WordProgress>;
   saved: Record<string, true>;
@@ -31,10 +53,14 @@ export interface AppState {
   history: SessionRecord[];
   /** Local dates (YYYY-MM-DD) with at least one review, for the streak. */
   days: string[];
+  paused: PausedSession[];
+  closed: ClosedSession[];
 }
 
 const KEY = "sat-vocab:v1";
 const MODES: StudyMode[] = ["flashcards", "quiz-word", "quiz-def", "quiz-mixed"];
+export const MAX_PAUSED = 10;
+const MAX_CLOSED = 50;
 
 export const DEFAULT_STUDY: StudySettings = { mode: "flashcards", size: 20, shuffle: true, front: "word" };
 
@@ -45,6 +71,8 @@ export const DEFAULT_STATE: AppState = {
   study: DEFAULT_STUDY,
   history: [],
   days: [],
+  paused: [],
+  closed: [],
 };
 
 let state: AppState = DEFAULT_STATE;
@@ -151,7 +179,37 @@ export function sanitize(input: unknown): AppState {
     ? input.days.filter((d): d is string => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)).slice(-730)
     : [];
 
-  return { progress, saved, filters, study, history, days };
+  const isIds = (v: unknown): v is string[] => Array.isArray(v) && v.every((id) => typeof id === "string" && WORD_BY_ID.has(id));
+  const paused: PausedSession[] = Array.isArray(input.paused)
+    ? input.paused
+        .filter(isObject)
+        .filter((p) => MODES.includes(p.mode as StudyMode) && isIds(p.ids) && p.ids.length > 0 && isIds(p.right) && isIds(p.missed))
+        .map((p) => {
+          const ids = p.ids as string[];
+          return {
+            run: num(p.run),
+            pausedAt: num(p.pausedAt),
+            mode: p.mode as StudyMode,
+            ids,
+            front: p.front === "definition" ? ("definition" as const) : ("word" as const),
+            index: Math.min(ids.length, Math.max(0, Math.round(num(p.index)))),
+            right: p.right as string[],
+            missed: p.missed as string[],
+          };
+        })
+        .filter((p) => p.run > 0 && p.index < p.ids.length)
+        .slice(-MAX_PAUSED)
+    : [];
+
+  const closed: ClosedSession[] = Array.isArray(input.closed)
+    ? input.closed
+        .filter(isObject)
+        .map((c) => ({ run: num(c.run), at: num(c.at) }))
+        .filter((c) => c.run > 0 && c.at > 0)
+        .slice(-MAX_CLOSED)
+    : [];
+
+  return { progress, saved, filters, study, history, days, paused, closed };
 }
 
 function load() {
@@ -311,6 +369,23 @@ export function recordSession(record: SessionRecord) {
     const history = i >= 0 ? s.history.map((h, j) => (j === i ? record : h)) : [...s.history, record].slice(-100);
     return { ...s, history };
   });
+}
+
+/** Puts a session aside (or updates it if it was paused before). */
+export function pauseSession(session: PausedSession) {
+  update((s) => ({
+    ...s,
+    paused: [...s.paused.filter((p) => p.run !== session.run), session].slice(-MAX_PAUSED),
+  }));
+}
+
+/** Removes a paused session, because it was resumed or discarded. */
+export function closePaused(run: number) {
+  update((s) => ({
+    ...s,
+    paused: s.paused.filter((p) => p.run !== run),
+    closed: [...s.closed.filter((c) => c.run !== run), { run, at: Date.now() }].slice(-MAX_CLOSED),
+  }));
 }
 
 export function resetProgress() {
