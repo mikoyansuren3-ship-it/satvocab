@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BookOpenCheck } from "lucide-react";
 import { AccountButton } from "./AccountButton";
 import { NavTabs } from "./NavTabs";
+import { ThemeToggle } from "./ThemeToggle";
 import { TIERS, WORDS } from "@/lib/words";
 
 export function AppHeader() {
@@ -21,7 +22,8 @@ export function AppHeader() {
             </span>
           </span>
         </Link>
-        <div className="shrink-0 sm:order-last">
+        <div className="flex shrink-0 items-center gap-2 sm:order-last">
+          <ThemeToggle />
           <AccountButton />
         </div>
       </div>

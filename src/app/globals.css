@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+/*
+ * Dark mode follows the device setting unless this browser has a saved choice,
+ * which the header toggle stores and sets as data-theme on <html>.
+ */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+}
+
 :root {
   --bg: #ffffff;
   --surface: #ffffff;
@@ -17,8 +32,9 @@
   color-scheme: light;
 }
 
+/* The dark tokens appear twice (device setting, chosen theme); keep both blocks the same. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0e0e0d;
     --surface: #161615;
     --surface-2: #1e1e1c;
@@ -34,6 +50,23 @@
     --focus: #60a5fa;
     color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e0e0d;
+  --surface: #161615;
+  --surface-2: #1e1e1c;
+  --surface-3: #2a2a27;
+  --line: #2d2d2a;
+  --ink: #f3f3f1;
+  --muted: #a8a8a2;
+  --faint: #8f8f89;
+  --brand: #15803d;
+  --brand-hover: #16a34a;
+  --brand-soft: #052e16;
+  --brand-text: #4ade80;
+  --focus: #60a5fa;
+  color-scheme: dark;
 }
 
 @theme inline {

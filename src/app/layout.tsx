@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { AppHeader } from "@/components/AppHeader";
 import { AuthGate } from "@/components/account/AuthGate";
+import { THEME_SCRIPT } from "@/lib/theme-script";
 import "./globals.css";
 
 const inter = Inter({
@@ -27,7 +28,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    // The head script may set data-theme before React hydrates, so <html> can differ from the server's HTML.
+    <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-full font-sans">
         <div className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
           <AppHeader />
