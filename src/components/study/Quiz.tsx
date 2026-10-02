@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, CircleCheck, CircleX, Pause, X } from "lucide-react";
+import { ArrowRight, CircleCheck, CircleX, Pause, Timer, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { levelOf } from "@/lib/mastery";
 import type { Question } from "@/lib/quiz";
@@ -12,10 +12,13 @@ import { Example, MasteryBadge, ProgressBar, SaveButton } from "../bits";
 import { ignoreKey, type SessionProgress, type SessionResult } from "./types";
 
 const LETTERS = ["A", "B", "C", "D"];
+/** The "choice" recorded when a question's time runs out. */
+const TIMED_OUT = -1;
 
 export function Quiz({
   mode,
   questions,
+  timer,
   resume,
   onProgress,
   onPause,
@@ -24,6 +27,8 @@ export function Quiz({
 }: {
   mode: StudyMode;
   questions: Question[];
+  /** Seconds allowed per question; 0 means no time limit. */
+  timer: number;
   resume?: SessionProgress | null;
   onProgress: (p: SessionProgress) => void;
   /** Sets the session aside to finish later, from where it stands now. */
@@ -42,6 +47,7 @@ export function Quiz({
   const q = questions[index];
   const word = WORD_BY_ID.get(q.id) as Word;
   const answered = choice !== null;
+  const timedOut = choice === TIMED_OUT;
   const isCorrect = choice === q.answer;
   const toWord = q.direction === "def-to-word";
   const ids = questions.map((x) => x.id);
@@ -50,7 +56,7 @@ export function Quiz({
     onDone({ mode, ids, answered: r.length + m.length, correct: r.length, missed: m });
 
   const answer = (i: number) => {
-    if (answered || i < 0 || i >= q.options.length) return;
+    if (answered || i < TIMED_OUT || i >= q.options.length) return;
     const ok = i === q.answer;
     const nextRight = ok ? [...right, q.id] : right;
     const nextMissed = ok ? missed : [...missed, q.id];
@@ -110,7 +116,7 @@ export function Quiz({
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const chosenWord = choice !== null ? WORD_BY_ID.get(q.options[choice]) : undefined;
+  const chosenWord = choice !== null && !timedOut ? WORD_BY_ID.get(q.options[choice]) : undefined;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -145,6 +151,10 @@ export function Quiz({
       </div>
 
       <section className="mt-6 rounded-3xl border border-line bg-surface p-6 shadow-sm sm:p-8" aria-labelledby="quiz-prompt">
+        {timer > 0 && (
+          // Keyed per question, so each one starts with the full time.
+          <QuestionTimer key={index} seconds={timer} running={!answered} onExpire={() => answer(TIMED_OUT)} />
+        )}
         <p className="text-sm font-semibold tracking-wide text-muted uppercase">
           {toWord ? "Which word matches this definition?" : "What does this word mean?"}
         </p>
@@ -234,8 +244,9 @@ export function Quiz({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className={cn("text-lg font-bold", isCorrect ? "text-green-700 dark:text-green-400" : "text-red-600 dark:text-red-400")}>
-                  {isCorrect ? "Correct!" : "Not quite."}
+                  {isCorrect ? "Correct!" : timedOut ? "Time’s up." : "Not quite."}
                 </p>
+                {timedOut && <p className="mt-1 text-[15px] text-muted">The right answer is marked above.</p>}
                 {!isCorrect && chosenWord && (
                   <p className="mt-1 text-[15px] text-muted">
                     {toWord ? (
@@ -279,6 +290,50 @@ export function Quiz({
       <p className="mt-4 hidden text-center text-sm text-faint sm:block">
         Press 1 to 4 (or A to D) to answer · Enter for the next question · P pauses · Esc ends
       </p>
+    </div>
+  );
+}
+
+/** Counts down one question's time; calls onExpire when it reaches zero, and stops once the question is answered. */
+function QuestionTimer({ seconds, running, onExpire }: { seconds: number; running: boolean; onExpire: () => void }) {
+  const [left, setLeft] = useState(seconds * 1000);
+  const expire = useRef(onExpire);
+  useEffect(() => {
+    expire.current = onExpire;
+  });
+
+  useEffect(() => {
+    if (!running) return;
+    const deadline = Date.now() + seconds * 1000;
+    const id = setInterval(() => {
+      const ms = Math.max(0, deadline - Date.now());
+      setLeft(ms);
+      if (ms === 0) {
+        clearInterval(id);
+        expire.current();
+      }
+    }, 100);
+    return () => clearInterval(id);
+  }, [running, seconds]);
+
+  const secs = Math.ceil(left / 1000);
+  const low = secs <= Math.min(5, Math.ceil(seconds / 4));
+  return (
+    <div className="mb-4 flex items-center gap-3">
+      <span
+        role="timer"
+        aria-label={`${secs} second${secs === 1 ? "" : "s"} left`}
+        className={cn(
+          "inline-flex w-14 shrink-0 items-center gap-1 text-sm font-semibold tabular-nums",
+          low ? "text-red-600 dark:text-red-400" : "text-muted",
+        )}
+      >
+        <Timer className="size-4" aria-hidden />
+        {secs}s
+      </span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
+        <div className={cn("h-full rounded-full", low ? "bg-red-500" : "bg-brand")} style={{ width: `${(left / (seconds * 1000)) * 100}%` }} />
+      </div>
     </div>
   );
 }

@@ -4,7 +4,14 @@ import { WORD_BY_ID } from "./words";
 
 export type ActiveSession =
   | { kind: "flashcards"; run: number; ids: string[]; front: "word" | "definition" }
-  | { kind: "quiz"; run: number; mode: StudyMode; questions: Question[] };
+  | {
+      kind: "quiz";
+      run: number;
+      mode: StudyMode;
+      questions: Question[];
+      /** Seconds per question; 0 or missing means untimed. */
+      timer?: number;
+    };
 
 export interface SessionProgress {
   index: number;
@@ -59,7 +66,14 @@ function isActive(a: unknown): a is ActiveSession {
   const s = a as Record<string, unknown>;
   if (typeof s.run !== "number") return false;
   if (s.kind === "flashcards") return isIds(s.ids) && s.ids.length > 0 && (s.front === "word" || s.front === "definition");
-  return s.kind === "quiz" && typeof s.mode === "string" && Array.isArray(s.questions) && s.questions.length > 0 && s.questions.every(isQuestion);
+  return (
+    s.kind === "quiz" &&
+    typeof s.mode === "string" &&
+    Array.isArray(s.questions) &&
+    s.questions.length > 0 &&
+    s.questions.every(isQuestion) &&
+    (s.timer === undefined || typeof s.timer === "number")
+  );
 }
 
 const isProgress = (p: unknown): p is SessionProgress =>
@@ -118,6 +132,7 @@ export function toPaused(a: ActiveSession, p: SessionProgress | null): PausedSes
     mode: sessionMode(a),
     ids: sessionIds(a),
     front: a.kind === "flashcards" ? a.front : "word",
+    timer: a.kind === "quiz" ? (a.timer ?? 0) : 0,
     index: p?.index ?? 0,
     right: p?.right ?? [],
     missed: p?.missed ?? [],
@@ -129,7 +144,7 @@ export function fromPaused(p: PausedSession): { active: ActiveSession; progress:
   const active: ActiveSession =
     p.mode === "flashcards"
       ? { kind: "flashcards", run: p.run, ids: p.ids, front: p.front }
-      : { kind: "quiz", run: p.run, mode: p.mode, questions: buildQuiz(p.ids, p.mode) };
+      : { kind: "quiz", run: p.run, mode: p.mode, questions: buildQuiz(p.ids, p.mode), timer: p.timer };
   return { active, progress: { index: p.index, right: p.right, missed: p.missed } };
 }
 

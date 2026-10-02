@@ -13,6 +13,8 @@ export interface StudySettings {
   size: number;
   shuffle: boolean;
   front: "word" | "definition";
+  /** Seconds allowed per quiz question; 0 means no time limit. */
+  timer: number;
 }
 
 export interface SessionRecord {
@@ -33,6 +35,8 @@ export interface PausedSession {
   ids: string[];
   /** Which side flashcards show first. */
   front: "word" | "definition";
+  /** Quiz seconds per question; 0 means no time limit. */
+  timer: number;
   /** How many words were answered (they come first in ids). */
   index: number;
   right: string[];
@@ -62,7 +66,9 @@ const MODES: StudyMode[] = ["flashcards", "quiz-word", "quiz-def", "quiz-mixed"]
 export const MAX_PAUSED = 10;
 const MAX_CLOSED = 50;
 
-export const DEFAULT_STUDY: StudySettings = { mode: "flashcards", size: 20, shuffle: true, front: "word" };
+export const DEFAULT_STUDY: StudySettings = { mode: "flashcards", size: 20, shuffle: true, front: "word", timer: 0 };
+/** Per-question time limits a quiz can have (0 is off). */
+export const TIMER_OPTIONS = [0, 10, 20, 30];
 
 export const DEFAULT_STATE: AppState = {
   progress: {},
@@ -156,6 +162,7 @@ export function sanitize(input: unknown): AppState {
     size: [0, 10, 20, 30, 50].includes(num(s.size, -1)) ? num(s.size) : DEFAULT_STUDY.size,
     shuffle: typeof s.shuffle === "boolean" ? s.shuffle : DEFAULT_STUDY.shuffle,
     front: s.front === "definition" ? "definition" : "word",
+    timer: TIMER_OPTIONS.includes(num(s.timer, -1)) ? num(s.timer) : DEFAULT_STUDY.timer,
   };
 
   const history: SessionRecord[] = Array.isArray(input.history)
@@ -195,6 +202,7 @@ export function sanitize(input: unknown): AppState {
             index: Math.min(ids.length, Math.max(0, Math.round(num(p.index)))),
             right: p.right as string[],
             missed: p.missed as string[],
+            timer: TIMER_OPTIONS.includes(num(p.timer)) ? num(p.timer) : 0,
           };
         })
         .filter((p) => p.run > 0 && p.index < p.ids.length)

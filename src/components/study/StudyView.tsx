@@ -23,6 +23,7 @@ import {
 import { fmt } from "@/lib/format";
 import {
   MAX_PAUSED,
+  TIMER_OPTIONS,
   clearFilters,
   closePaused,
   pauseSession,
@@ -126,7 +127,7 @@ function Study({ canRestore }: { canRestore: boolean }) {
     const next: ActiveSession =
       mode === "flashcards"
         ? { kind: "flashcards", run, ids: order, front: study.front }
-        : { kind: "quiz", run, mode, questions: buildQuiz(order, mode) };
+        : { kind: "quiz", run, mode, questions: buildQuiz(order, mode), timer: study.timer };
     setSessionCache({ active: next, progress: null, result: null });
     setResult(null);
     setActive(next);
@@ -215,6 +216,7 @@ function Study({ canRestore }: { canRestore: boolean }) {
         key={active.run}
         mode={active.mode}
         questions={active.questions}
+        timer={active.timer ?? 0}
         resume={resume}
         onProgress={saveProgress}
         onPause={pause}
@@ -391,6 +393,14 @@ function Study({ canRestore }: { canRestore: boolean }) {
               options={SIZES.map((n) => ({ value: n, label: n === 0 ? "All" : String(n) }))}
               onChange={(size) => setStudy({ size })}
             />
+            {study.mode !== "flashcards" && (
+              <Segmented
+                label="Timer"
+                value={study.timer}
+                options={TIMER_OPTIONS.map((t) => ({ value: t, label: t === 0 ? "Off" : `${t}s` }))}
+                onChange={(timer) => setStudy({ timer })}
+              />
+            )}
             {study.mode === "flashcards" && (
               <Segmented
                 label="Card front"
@@ -435,6 +445,7 @@ function Study({ canRestore }: { canRestore: boolean }) {
                 <strong className="text-ink">{fmt(count)}</strong> word{count === 1 ? "" : "s"}
                 {count < pool.length ? <> · the first {count} by “{summarize.sort(filters)}”</> : null}
                 {study.shuffle ? ", shuffled" : ""}
+                {study.mode !== "flashcards" && study.timer > 0 ? `, ${study.timer}s per question` : ""}
               </p>
             ) : (
               <p className="text-[15px] text-muted">
