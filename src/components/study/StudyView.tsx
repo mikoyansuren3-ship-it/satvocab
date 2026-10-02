@@ -6,17 +6,20 @@ import { cn } from "@/lib/cn";
 import { describeFilters, filterWords, summarize } from "@/lib/filters";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE, levelOf } from "@/lib/mastery";
 import { buildQuiz, shuffle } from "@/lib/quiz";
+import { flushProgress } from "@/lib/account";
 import {
-  logRun,
+  recordRun,
+  restoreSession,
   sessionCache,
   sessionIds,
   sessionMode,
+  setSessionCache,
   type ActiveSession,
   type SessionProgress,
   type SessionResult,
 } from "@/lib/session";
 import { fmt } from "@/lib/format";
-import { clearFilters, setFilters, setStudy, useAppState, type StudyMode } from "@/lib/store";
+import { clearFilters, setFilters, setStudy, useAppState, useHydrated, type StudyMode } from "@/lib/store";
 import { TIERS, TIER_INFO, WORDS, tierOf, type Tier } from "@/lib/words";
 import { onRadioGroupKeyDown } from "../bits";
 import { FilterAside, MobileFilterButton } from "../FilterPanel";
@@ -37,8 +40,17 @@ function sessionLength(active: ActiveSession): number {
   return active.kind === "flashcards" ? active.ids.length : active.questions.length;
 }
 
-/** Picks up a session left running on another tab; a finished one becomes its summary. */
-function restore(): { active: ActiveSession | null; progress: SessionProgress | null; result: SessionResult | null } {
+interface Restored {
+  active: ActiveSession | null;
+  progress: SessionProgress | null;
+  result: SessionResult | null;
+}
+
+const NOTHING: Restored = { active: null, progress: null, result: null };
+
+/** Picks up a session left running on another tab or before a reload; a finished one becomes its summary. */
+function restore(): Restored {
+  restoreSession();
   const { active, progress, result } = sessionCache;
   if (active && progress && progress.index >= sessionLength(active)) {
     const done: SessionResult = {
@@ -54,9 +66,16 @@ function restore(): { active: ActiveSession | null; progress: SessionProgress | 
 }
 
 export function StudyView() {
+  // The session in progress is kept in this tab's storage, which the server can't see:
+  // pick it up once hydrated, so the first render matches the server's HTML.
+  const hydrated = useHydrated();
+  return <Study key={hydrated ? "client" : "server"} canRestore={hydrated} />;
+}
+
+function Study({ canRestore }: { canRestore: boolean }) {
   const { filters, progress, saved, study } = useAppState();
   const pool = useMemo(() => filterWords(WORDS, filters, { progress, saved }), [filters, progress, saved]);
-  const [initial] = useState(restore);
+  const [initial] = useState(() => (canRestore ? restore() : NOTHING));
   const [active, setActive] = useState<ActiveSession | null>(initial.active);
   const [result, setResult] = useState<SessionResult | null>(initial.result);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -64,11 +83,7 @@ export function StudyView() {
 
   useEffect(() => {
     // A quiz finished on another tab: make the cache match the summary shown.
-    if (!initial.active && initial.result && sessionCache.active) {
-      sessionCache.active = null;
-      sessionCache.progress = null;
-      sessionCache.result = initial.result;
-    }
+    if (!initial.active && initial.result && sessionCache.active) setSessionCache({ active: null, progress: null, result: initial.result });
   }, [initial]);
 
   useEffect(() => {
@@ -88,34 +103,31 @@ export function StudyView() {
       mode === "flashcards"
         ? { kind: "flashcards", run, ids: order, front: study.front }
         : { kind: "quiz", run, mode, questions: buildQuiz(order, mode) };
-    sessionCache.active = next;
-    sessionCache.progress = null;
-    sessionCache.result = null;
+    setSessionCache({ active: next, progress: null, result: null });
     setResult(null);
     setActive(next);
     window.scrollTo({ top: 0 });
   };
 
+  // Every answer goes straight into progress and history; nothing waits for the session to end.
   const saveProgress = (p: SessionProgress) => {
-    sessionCache.progress = p;
-    // Log as soon as the last question is answered, even if "See results" is never clicked.
-    if (active && p.index >= sessionLength(active)) logRun(active, p.right.length + p.missed.length, p.right.length);
+    if (!active) return;
+    setSessionCache({ active, progress: p, result: null });
+    recordRun(active, p.right.length + p.missed.length, p.right.length);
   };
 
   const finish = (r: SessionResult) => {
-    if (active) logRun(active, r.answered, r.correct);
-    sessionCache.active = null;
-    sessionCache.progress = null;
-    sessionCache.result = r;
+    if (active) recordRun(active, r.answered, r.correct);
+    setSessionCache({ active: null, progress: null, result: r });
+    void flushProgress();
     setActive(null);
     setResult(r);
     window.scrollTo({ top: 0 });
   };
 
   const backToSetup = () => {
-    sessionCache.active = null;
-    sessionCache.progress = null;
-    sessionCache.result = null;
+    setSessionCache({ active: null, progress: null, result: null });
+    void flushProgress();
     focusTitle.current = true;
     setActive(null);
     setResult(null);

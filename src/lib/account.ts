@@ -20,7 +20,8 @@ export interface AccountUser {
 
 /** "unavailable": the site has no account storage set up, so everyone studies as a guest. */
 export type AccountStatus = "loading" | "guest" | "user" | "unavailable";
-export type SyncStatus = "idle" | "saving" | "saved" | "offline" | "expired";
+/** "pending": saved in this browser, waiting for the next batched save to the account. */
+export type SyncStatus = "idle" | "saving" | "saved" | "pending" | "offline" | "expired";
 
 export interface AccountState {
   status: AccountStatus;
@@ -103,10 +104,14 @@ export function mergeStates(remote: AppState, local: AppState): AppState {
     const r = progress[id];
     if (!r || p.last > r.last || (p.last === r.last && p.seen > r.seen)) progress[id] = p;
   }
-  const history = [...remote.history, ...local.history]
-    .filter((h, i, all) => all.findIndex((x) => x.t === h.t && x.mode === h.mode) === i)
-    .sort((a, b) => a.t - b.t)
-    .slice(-100);
+  // A session is updated as it's answered, so the copy with more answers is the newer one.
+  const sessions = new Map<string, AppState["history"][number]>();
+  for (const h of [...remote.history, ...local.history]) {
+    const key = `${h.t}:${h.mode}`;
+    const other = sessions.get(key);
+    if (!other || h.total > other.total) sessions.set(key, h);
+  }
+  const history = [...sessions.values()].sort((a, b) => a.t - b.t).slice(-100);
   const days = Array.from(new Set([...remote.days, ...local.days]))
     .sort()
     .slice(-730);
@@ -122,11 +127,24 @@ export function mergeStates(remote: AppState, local: AppState): AppState {
 
 // ---- syncing ----------------------------------------------------------------
 
+/**
+ * Every change is saved in this browser at once (store.ts), so a reload or a closed tab
+ * loses nothing: unsynced changes are marked dirty and merged in on the next visit. The
+ * server copy, which other devices read, is updated in batches: when a study session
+ * ends, when the tab is hidden or closed, and otherwise at most every SYNC_EVERY ms.
+ * Batching keeps writes well inside the Blob store's free monthly allowance.
+ */
+const SYNC_EVERY = 2 * 60_000;
+/** Browsers drop keepalive requests (the kind that outlive the page) above 64 KB. */
+const KEEPALIVE_LIMIT = 60_000;
+
 /** Saves wait until the user's server copy has been loaded once, so a new device can't overwrite it. */
 let pulled = false;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let saveDue = 0;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
 let saving = false;
+let saveAgain = false;
 let version = 0;
 
 function stopTimers() {
@@ -135,27 +153,40 @@ function stopTimers() {
   saveTimer = retryTimer = null;
 }
 
-function scheduleSave(delay = 1200) {
+/** Sends the changes within `delay` ms; an earlier pending save is kept, not pushed back. */
+function scheduleSave(delay = SYNC_EVERY) {
   if (!pulled || !account.user) return;
+  const due = Date.now() + delay;
+  if (saveTimer && saveDue <= due) return;
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => void save(), delay);
+  saveDue = due;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    void save();
+  }, delay);
 }
 
-async function save(): Promise<boolean> {
+async function save({ keepalive = false } = {}): Promise<boolean> {
   const user = account.user;
   if (!user || !pulled) return false;
   if (saving) {
-    scheduleSave();
+    // Send again as soon as the current save finishes.
+    saveAgain = true;
     return false;
   }
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
   saving = true;
   const sentVersion = version;
   setAccount({ sync: "saving" });
   try {
+    const body = JSON.stringify({ data: getState() });
     const res = await fetch("/api/progress", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data: getState() }),
+      body,
+      // Lets the save finish even if the page is being reloaded or closed.
+      keepalive: keepalive && body.length < KEEPALIVE_LIMIT,
     });
     if (account.user?.id !== user.id) return false;
     if (res.status === 401) {
@@ -163,9 +194,10 @@ async function save(): Promise<boolean> {
       return false;
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    if (version === sentVersion) setDirty(user.id, false);
+    const current = version === sentVersion;
+    if (current) setDirty(user.id, false);
     else scheduleSave();
-    setAccount({ sync: "saved" });
+    setAccount({ sync: current ? "saved" : "pending" });
     return true;
   } catch {
     if (account.user?.id === user.id) {
@@ -175,7 +207,16 @@ async function save(): Promise<boolean> {
     return false;
   } finally {
     saving = false;
+    if (saveAgain) {
+      saveAgain = false;
+      if (account.user?.id === user.id && isDirty(user.id)) void save();
+    }
   }
+}
+
+/** Sends unsynced changes to the server now (e.g. when a study session ends). */
+export async function flushProgress(): Promise<void> {
+  if (account.user && pulled && isDirty(account.user.id)) await save();
 }
 
 async function pull(user: AccountUser) {
@@ -213,8 +254,8 @@ async function pull(user: AccountUser) {
 
 function activate(user: AccountUser, startFrom?: AppState) {
   stopTimers();
-  // A study session in progress belongs to whoever started it.
-  clearSession();
+  // A study session in progress belongs to whoever started it (a reload keeps it).
+  if (getOwner() !== user.id) clearSession();
   pulled = false;
   writeLastUser(user);
   switchOwner(user.id);
@@ -228,7 +269,7 @@ function activate(user: AccountUser, startFrom?: AppState) {
 
 function becomeGuest(status: AccountStatus = "guest") {
   stopTimers();
-  clearSession();
+  if (getOwner() !== "guest") clearSession();
   pulled = false;
   writeLastUser(null);
   switchOwner("guest");
@@ -242,11 +283,12 @@ async function init() {
     if (!user) return;
     version++;
     setDirty(user.id, true);
+    if (account.sync === "saved") setAccount({ sync: "pending" });
     scheduleSave();
   });
-  // Push unsaved changes when the tab is hidden or closed.
+  // Push unsaved changes when the tab is hidden, reloaded or closed.
   const flush = () => {
-    if (document.visibilityState === "hidden" && account.user && pulled && isDirty(account.user.id)) void save();
+    if (document.visibilityState === "hidden" && account.user && pulled && isDirty(account.user.id)) void save({ keepalive: true });
   };
   document.addEventListener("visibilitychange", flush);
   window.addEventListener("pagehide", flush);
@@ -338,7 +380,7 @@ export async function signIn(username: string, pin: string): Promise<string | nu
 }
 
 export async function signOut() {
-  // Record any unfinished study session first, so the final save includes it.
+  // Answers are already in progress and history; just close the session on screen.
   clearSession();
   // Let a save that's already on its way finish, then send whatever is left.
   for (let waited = 0; saving && waited < 5000; waited += 50) await new Promise((r) => setTimeout(r, 50));

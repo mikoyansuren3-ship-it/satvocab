@@ -11,17 +11,19 @@ const SYNC_TEXT: Record<SyncStatus, string> = {
   idle: "Loading your progress…",
   saving: "Saving…",
   saved: "Progress saved to your account",
+  pending: "Saved on this device. Syncing to your account soon.",
   offline: "Offline. Changes will save when you reconnect.",
   expired: "Your sign-in expired. Sign in again to keep saving.",
 };
 
 export function SyncIcon({ sync, className }: { sync: SyncStatus; className?: string }) {
-  const Icon = sync === "saved" ? Check : sync === "offline" ? CloudOff : sync === "expired" ? TriangleAlert : RefreshCw;
+  const done = sync === "saved" || sync === "pending";
+  const Icon = done ? Check : sync === "offline" ? CloudOff : sync === "expired" ? TriangleAlert : RefreshCw;
   return (
     <Icon
       className={cn(
         "size-4 shrink-0",
-        sync === "saved" && "text-brand-text",
+        done && "text-brand-text",
         sync === "expired" && "text-amber-600",
         (sync === "saving" || sync === "idle") && "animate-spin motion-reduce:animate-none",
         className,

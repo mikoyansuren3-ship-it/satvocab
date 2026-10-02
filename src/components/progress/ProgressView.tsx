@@ -277,7 +277,7 @@ export function ProgressView() {
                 ))}
             </ul>
           ) : (
-            <p className="mt-3 text-[15px] text-muted">Finish a flashcard round or quiz to see it here.</p>
+            <p className="mt-3 text-[15px] text-muted">Answer some flashcards or quiz questions to see your sessions here.</p>
           )}
         </section>
       </div>

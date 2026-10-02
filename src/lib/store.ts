@@ -16,6 +16,7 @@ export interface StudySettings {
 }
 
 export interface SessionRecord {
+  /** When the session started; identifies it while it's still being answered. */
   t: number;
   mode: StudyMode;
   total: number;
@@ -302,9 +303,14 @@ export function setStudy(patch: Partial<StudySettings>) {
   update((s) => ({ ...s, study: { ...s.study, ...patch } }));
 }
 
-export function logSession(record: Omit<SessionRecord, "t">) {
+/** Adds a study session to history, or updates its entry (same start time) as more answers come in. */
+export function recordSession(record: SessionRecord) {
   if (!record.total) return;
-  update((s) => ({ ...s, history: [...s.history, { ...record, t: Date.now() }].slice(-100) }));
+  update((s) => {
+    const i = s.history.findIndex((h) => h.t === record.t && h.mode === record.mode);
+    const history = i >= 0 ? s.history.map((h, j) => (j === i ? record : h)) : [...s.history, record].slice(-100);
+    return { ...s, history };
+  });
 }
 
 export function resetProgress() {
