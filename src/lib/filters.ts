@@ -1,12 +1,10 @@
 import { LEVELS, LEVEL_LABEL, levelOf, type Level, type WordProgress } from "./mastery";
 import {
-  CATEGORIES,
   DIFFICULTIES,
   DIFFICULTY_INFO,
   POS_OPTIONS,
   TIERS,
   TIER_INFO,
-  type Category,
   type Difficulty,
   type Pos,
   type Tier,
@@ -36,7 +34,6 @@ export interface Filters {
   mastery: Level[];
   difficulty: Difficulty[];
   tiers: Tier[];
-  categories: Category[];
   pos: Pos[];
   saved: SavedFilter;
   sort: SortKey;
@@ -47,7 +44,6 @@ export const DEFAULT_FILTERS: Filters = {
   mastery: [],
   difficulty: [],
   tiers: [],
-  categories: [],
   pos: [],
   saved: "all",
   sort: "weakest",
@@ -59,7 +55,7 @@ export interface FilterContext {
   saved: Record<string, true>;
 }
 
-type Facet = "mastery" | "difficulty" | "tiers" | "categories" | "pos" | "saved";
+type Facet = "mastery" | "difficulty" | "tiers" | "pos" | "saved";
 
 const normalize = (s: string) => s.toLowerCase().replace(/[’']/g, "'").trim();
 
@@ -68,7 +64,6 @@ export function matches(w: Word, f: Filters, ctx: FilterContext, skip?: Facet): 
   if (skip !== "mastery" && f.mastery.length && !f.mastery.includes(levelOf(ctx.progress[w.id]))) return false;
   if (skip !== "difficulty" && f.difficulty.length && !f.difficulty.includes(w.difficulty)) return false;
   if (skip !== "tiers" && f.tiers.length && !f.tiers.includes(w.tier)) return false;
-  if (skip !== "categories" && f.categories.length && !f.categories.includes(w.category)) return false;
   if (skip !== "pos" && f.pos.length && !f.pos.includes(w.pos)) return false;
   if (skip !== "saved" && f.saved !== "all") {
     const isSaved = Boolean(ctx.saved[w.id]);
@@ -157,7 +152,6 @@ export interface FacetCounts {
   mastery: Record<Level, number>;
   difficulty: Record<Difficulty, number>;
   tiers: Record<Tier, number>;
-  categories: Record<Category, number>;
   pos: Record<Pos, number>;
   saved: Record<SavedFilter, number>;
 }
@@ -167,7 +161,6 @@ export function facetCounts(words: Word[], f: Filters, ctx: FilterContext): Face
     mastery: Object.fromEntries(LEVELS.map((l) => [l, 0])) as Record<Level, number>,
     difficulty: Object.fromEntries(DIFFICULTIES.map((d) => [d, 0])) as Record<Difficulty, number>,
     tiers: Object.fromEntries(TIERS.map((t) => [t, 0])) as Record<Tier, number>,
-    categories: Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>,
     pos: Object.fromEntries(POS_OPTIONS.map((o) => [o.value, 0])) as Record<Pos, number>,
     saved: { all: 0, saved: 0, unsaved: 0 },
   };
@@ -175,7 +168,6 @@ export function facetCounts(words: Word[], f: Filters, ctx: FilterContext): Face
     if (matches(w, f, ctx, "mastery")) counts.mastery[levelOf(ctx.progress[w.id])]++;
     if (matches(w, f, ctx, "difficulty")) counts.difficulty[w.difficulty]++;
     if (matches(w, f, ctx, "tiers")) counts.tiers[w.tier]++;
-    if (matches(w, f, ctx, "categories")) counts.categories[w.category]++;
     if (matches(w, f, ctx, "pos")) counts.pos[w.pos]++;
     if (matches(w, f, ctx, "saved")) {
       counts.saved.all++;
@@ -191,7 +183,6 @@ export function activeFilterCount(f: Filters): number {
     (f.mastery.length ? 1 : 0) +
     (f.difficulty.length ? 1 : 0) +
     (f.tiers.length ? 1 : 0) +
-    (f.categories.length ? 1 : 0) +
     (f.pos.length ? 1 : 0) +
     (f.saved !== "all" ? 1 : 0)
   );
@@ -214,7 +205,6 @@ export const summarize = {
   difficulty: (f: Filters) =>
     listSummary(sortDifficulties(f.difficulty), "All levels", "selected", (v) => DIFFICULTY_INFO[v as Difficulty].label),
   tiers: (f: Filters) => listSummary(sortTiers(f.tiers), "All frequencies", "selected", (v) => TIER_INFO[v as Tier].label),
-  categories: (f: Filters) => listSummary(f.categories, "All categories", "categories"),
   pos: (f: Filters) => listSummary(f.pos, "All", "selected", posLabel),
   saved: (f: Filters) => SAVED_OPTIONS.find((o) => o.value === f.saved)?.label ?? "Everything",
   sort: (f: Filters) => SORT_OPTIONS.find((o) => o.value === f.sort)?.label ?? "",
@@ -234,7 +224,6 @@ export function describeFilters(f: Filters): string {
   if (f.mastery.length) parts.push(f.mastery.map((l) => LEVEL_LABEL[l]).join(" or "));
   if (f.difficulty.length) parts.push(sortDifficulties(f.difficulty).map((d) => DIFFICULTY_INFO[d].label).join(" or "));
   if (f.tiers.length) parts.push(sortTiers(f.tiers).map((t) => TIER_INFO[t].label).join(" or "));
-  if (f.categories.length) parts.push(f.categories.length <= 2 ? f.categories.join(", ") : `${f.categories.length} categories`);
   if (f.pos.length) parts.push(f.pos.map((v) => posLabel(v).toLowerCase()).join(" or "));
   if (f.saved === "saved") parts.push("saved");
   if (f.saved === "unsaved") parts.push("not saved");

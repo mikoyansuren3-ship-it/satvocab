@@ -2,19 +2,6 @@ import data from "@/data/words.json";
 
 export type Pos = "n." | "v." | "adj." | "adv.";
 
-export const CATEGORIES = [
-  "Action",
-  "Communication",
-  "Mind & Reason",
-  "Character",
-  "Emotion",
-  "Opposition",
-  "Change & Growth",
-  "Society & Power",
-  "Quality & Degree",
-] as const;
-export type Category = (typeof CATEGORIES)[number];
-
 /** The three source lists, from most to least common on past SATs. */
 export type Tier = "top" | "mid" | "low";
 export const TIERS: Tier[] = ["top", "mid", "low"];
@@ -42,7 +29,6 @@ export interface Word {
   synonym: string;
   definition: string;
   pos: Pos;
-  category: Category;
   example: string;
 }
 
@@ -60,13 +46,12 @@ type Row = [
   synonym: string,
   definition: string,
   pos: string,
-  category: number,
   example: string,
   difficulty: number,
 ];
-const raw = data as unknown as { categories: Category[]; rows: Row[] };
+const raw = data as unknown as { rows: Row[] };
 
-export const WORDS: Word[] = raw.rows.map(([word, tier, synonym, definition, pos, category, example, difficulty], order) => ({
+export const WORDS: Word[] = raw.rows.map(([word, tier, synonym, definition, pos, example, difficulty], order) => ({
   id: slugify(word),
   word,
   tier: TIERS[tier] ?? "low",
@@ -75,7 +60,6 @@ export const WORDS: Word[] = raw.rows.map(([word, tier, synonym, definition, pos
   synonym,
   definition,
   pos: pos as Pos,
-  category: raw.categories[category] ?? "Quality & Degree",
   example,
 }));
 export const WORD_BY_ID = new Map(WORDS.map((w) => [w.id, w]));
@@ -98,45 +82,6 @@ export const POS_NAME: Record<Pos, string> = {
   "v.": "verb",
   "adj.": "adjective",
   "adv.": "adverb",
-};
-
-export const CATEGORY_STYLE: Record<Category, { pill: string; swatch: string }> = {
-  Action: {
-    pill: "bg-blue-50 text-blue-700 dark:bg-blue-950/70 dark:text-blue-300",
-    swatch: "bg-blue-500",
-  },
-  Communication: {
-    pill: "bg-teal-50 text-teal-700 dark:bg-teal-950/70 dark:text-teal-300",
-    swatch: "bg-teal-500",
-  },
-  "Mind & Reason": {
-    pill: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300",
-    swatch: "bg-indigo-500",
-  },
-  Character: {
-    pill: "bg-orange-50 text-orange-700 dark:bg-orange-950/70 dark:text-orange-300",
-    swatch: "bg-orange-500",
-  },
-  Emotion: {
-    pill: "bg-pink-50 text-pink-700 dark:bg-pink-950/70 dark:text-pink-300",
-    swatch: "bg-pink-500",
-  },
-  Opposition: {
-    pill: "bg-red-50 text-red-700 dark:bg-red-950/70 dark:text-red-300",
-    swatch: "bg-red-500",
-  },
-  "Change & Growth": {
-    pill: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300",
-    swatch: "bg-emerald-500",
-  },
-  "Society & Power": {
-    pill: "bg-amber-50 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300",
-    swatch: "bg-amber-500",
-  },
-  "Quality & Degree": {
-    pill: "bg-purple-50 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300",
-    swatch: "bg-purple-500",
-  },
 };
 
 /**

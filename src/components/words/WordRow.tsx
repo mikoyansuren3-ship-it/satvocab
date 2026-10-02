@@ -4,7 +4,7 @@ import { memo } from "react";
 import { cn } from "@/lib/cn";
 import { LEVEL_STYLE, levelOf, type WordProgress } from "@/lib/mastery";
 import { POS_NAME, TIER_INFO, type Word } from "@/lib/words";
-import { CategoryPill, DifficultyTag, Example, MasteryBadge, MasteryDots, SaveButton } from "../bits";
+import { DifficultyTag, Example, MasteryBadge, MasteryDots, SaveButton } from "../bits";
 
 export const WordRow = memo(function WordRow({
   word,
@@ -41,7 +41,6 @@ export const WordRow = memo(function WordRow({
                 </abbr>
               </span>
               <MasteryBadge level={level} className="self-center" />
-              <CategoryPill category={word.category} className="self-center px-2 py-0.5 sm:hidden" />
             </span>
             <span className={cn("mt-0.5 block text-[15px] text-muted", !expanded && "truncate")}>
               <span className="font-medium text-ink/85">{word.synonym}</span>
@@ -50,7 +49,6 @@ export const WordRow = memo(function WordRow({
           </span>
           <span className="hidden shrink-0 items-center gap-3 sm:flex">
             <MasteryDots level={level} />
-            <CategoryPill category={word.category} />
             <DifficultyTag difficulty={word.difficulty} className="w-[4.5rem] text-sm text-muted" />
           </span>
         </button>

@@ -3,7 +3,7 @@ import { ProgressView } from "@/components/progress/ProgressView";
 
 export const metadata: Metadata = {
   title: "Progress",
-  description: "See how many SAT words you've mastered, by difficulty, frequency and category.",
+  description: "See how many SAT words you've mastered, by difficulty and frequency.",
 };
 
 export default function ProgressPage() {

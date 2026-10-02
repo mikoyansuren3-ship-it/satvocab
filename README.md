@@ -38,8 +38,8 @@ The cutoffs give each level the same share of words as the Living Word Vocabular
 
 - **Flashcards**: flip each card, then mark it "Got it" or "Still learning". You can show the word or the definition on the front.
 - **Quizzes**: *word → definition* (one word, four definitions), *definition → word* (one definition, four words), or both mixed together. Wrong answers are drawn from words with the same part of speech so they stay plausible. You can give each question a time limit of 10, 20 or 30 seconds; running out counts as a miss.
-- **All words**: search words and definitions; filter by mastery, difficulty, frequency, category, part of speech and saved words; sort by weakest first, easiest or hardest first, A to Z, most missed or recently studied. Words you haven't studied yet come up easiest first. "Study these" opens a study session set to the current filters.
-- **Progress**: mastery overall and by difficulty, frequency and category, day streak, accuracy, most-missed words, recent sessions, and export, import or reset of your progress.
+- **All words**: search words and definitions; filter by mastery, difficulty, frequency, part of speech and saved words; sort by weakest first, easiest or hardest first, A to Z, most missed or recently studied. Words you haven't studied yet come up easiest first. "Study these" opens a study session set to the current filters.
+- **Progress**: mastery overall and by difficulty and frequency, day streak, accuracy, most-missed words, recent sessions, and export, import or reset of your progress.
 - **Mastery**: each right answer moves a word up one step and each miss moves it down two. Learning is 0 to 1 steps, Almost there is 2 to 3, and Mastered is 4 or more.
 - **Saving as you go**: every answer counts right away, without finishing the session, and a reload picks the session up where you left off. **Pause** sets a session aside to resume later, on any device signed in to the account.
 - **Dark mode**: follows the device setting until you use the sun/moon button in the header; that choice is remembered in the browser.
@@ -63,7 +63,7 @@ There's no PIN reset, because accounts have no email address.
 ## Data
 
 - `data/words.base.json`: the three word lists scraped from the source site and deduplicated, with the synonym and definition verbatim.
-- `data/enrichment.json`: generated part of speech, category and example sentence for each word. Each batch was checked by a second pass.
+- `data/enrichment.json`: generated part of speech and example sentence for each word (it also has a category, which the site no longer uses). Each batch was checked by a second pass.
 - `data/difficulty.json`: each word's difficulty level and the evidence behind it (see [Difficulty](#difficulty)).
 - `scripts/build-words.mjs`: merges the three into a compact `src/data/words.json`, ordered easiest first, which the app imports. Run `node scripts/build-words.mjs` after editing any of them.
 

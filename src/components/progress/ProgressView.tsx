@@ -21,15 +21,12 @@ import {
   type AppState,
 } from "@/lib/store";
 import {
-  CATEGORIES,
-  CATEGORY_STYLE,
   DIFFICULTIES,
   DIFFICULTY_INFO,
   TIERS,
   TIER_INFO,
   WORDS,
   WORD_BY_ID,
-  type Category,
   type Difficulty,
   type Tier,
   type Word,
@@ -77,7 +74,6 @@ interface Row {
   key: string;
   label: string;
   counts: Counts;
-  swatch?: string;
   icon?: React.ReactNode;
 }
 
@@ -100,16 +96,6 @@ export function ProgressView() {
   );
   const byTier = useMemo<Row[]>(
     () => TIERS.map((t) => ({ key: t, label: TIER_INFO[t].label, counts: countLevels(WORDS.filter((w) => w.tier === t), progress) })),
-    [progress],
-  );
-  const byCategory = useMemo<Row[]>(
-    () =>
-      CATEGORIES.map((c) => ({
-        key: c,
-        label: c,
-        swatch: CATEGORY_STYLE[c].swatch,
-        counts: countLevels(WORDS.filter((w) => w.category === c), progress),
-      })),
     [progress],
   );
 
@@ -174,28 +160,19 @@ export function ProgressView() {
       </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <div className="space-y-5">
-          <Breakdown
-            title="By difficulty"
-            firstColumn="Difficulty"
-            rows={byDifficulty}
-            onSelect={(key) => showWords({ difficulty: [key as Difficulty] })}
-            selectHint="Show these words"
-          />
-          <Breakdown
-            title="By frequency"
-            firstColumn="Frequency"
-            rows={byTier}
-            onSelect={(key) => showWords({ tiers: [key as Tier] })}
-            selectHint="Show these words"
-          />
-        </div>
         <Breakdown
-          title="By category"
-          firstColumn="Category"
-          rows={byCategory}
-          onSelect={(key) => showWords({ categories: [key as Category] })}
-          selectHint="Show this category's words"
+          title="By difficulty"
+          firstColumn="Difficulty"
+          rows={byDifficulty}
+          onSelect={(key) => showWords({ difficulty: [key as Difficulty] })}
+          selectHint="Show these words"
+        />
+        <Breakdown
+          title="By frequency"
+          firstColumn="Frequency"
+          rows={byTier}
+          onSelect={(key) => showWords({ tiers: [key as Tier] })}
+          selectHint="Show these words"
         />
       </div>
 
@@ -396,7 +373,6 @@ function Breakdown({
                   className="grid w-full grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 rounded-xl px-2 py-2 text-left hover:bg-surface-2 sm:grid-cols-[10.5rem_1fr_minmax(5.5rem,max-content)]"
                 >
                   <span className="flex min-w-0 items-center gap-2 text-[15px] font-medium">
-                    {r.swatch && <span className={cn("size-2 shrink-0 rounded-full", r.swatch)} aria-hidden />}
                     {r.icon}
                     <span className="truncate">{r.label}</span>
                   </span>

@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { DEFAULT_FILTERS, SAVED_OPTIONS, SORT_OPTIONS, type Filters } from "./filters";
 import { LEVELS, MAX_BOX, nextProgress, type WordProgress } from "./mastery";
-import { CATEGORIES, DIFFICULTIES, POS_OPTIONS, TIERS, WORD_BY_ID } from "./words";
+import { DIFFICULTIES, POS_OPTIONS, TIERS, WORD_BY_ID } from "./words";
 
 export type StudyMode = "flashcards" | "quiz-word" | "quiz-def" | "quiz-mixed";
 
@@ -146,7 +146,6 @@ export function sanitize(input: unknown): AppState {
     mastery: pick(LEVELS, f.mastery),
     difficulty: pick(DIFFICULTIES, f.difficulty),
     tiers: pick(TIERS, f.tiers),
-    categories: pick(CATEGORIES, f.categories),
     pos: pick(
       POS_OPTIONS.map((o) => o.value),
       f.pos,

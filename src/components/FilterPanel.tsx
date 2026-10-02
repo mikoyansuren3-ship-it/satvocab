@@ -15,8 +15,6 @@ import { fmt } from "@/lib/format";
 import { LEVELS, LEVEL_LABEL, LEVEL_STYLE } from "@/lib/mastery";
 import { clearFilters, setFilters, useAppState } from "@/lib/store";
 import {
-  CATEGORIES,
-  CATEGORY_STYLE,
   DIFFICULTIES,
   DIFFICULTY_INFO,
   POS_OPTIONS,
@@ -104,21 +102,6 @@ export function FilterPanel({ onDone, doneLabel = "Done" }: { onDone?: () => voi
         </OptionGroup>
       </Section>
 
-      <Section label="Category" summary={summarize.categories(f)}>
-        <OptionGroup label="Category">
-          {CATEGORIES.map((category) => (
-            <Option
-              key={category}
-              kind="checkbox"
-              checked={f.categories.includes(category)}
-              onSelect={() => set({ categories: toggle(f.categories, category) })}
-              label={category}
-              count={counts.categories[category]}
-              swatch={CATEGORY_STYLE[category].swatch}
-            />
-          ))}
-        </OptionGroup>
-      </Section>
 
       <Section label="Part of speech" summary={summarize.pos(f)}>
         <OptionGroup label="Part of speech">

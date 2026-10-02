@@ -5,14 +5,7 @@ import { Bookmark } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { LEVEL_LABEL, LEVEL_STYLE, type Level } from "@/lib/mastery";
 import { toggleSaved } from "@/lib/store";
-import {
-  CATEGORY_STYLE,
-  DIFFICULTIES,
-  DIFFICULTY_INFO,
-  splitExample,
-  type Category,
-  type Difficulty,
-} from "@/lib/words";
+import { DIFFICULTIES, DIFFICULTY_INFO, splitExample, type Difficulty } from "@/lib/words";
 
 export function MasteryBadge({ level, className }: { level: Level; className?: string }) {
   return (
@@ -69,20 +62,6 @@ export function DifficultyTag({ difficulty, className }: { difficulty: Difficult
     <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap", className)}>
       <DifficultyBars difficulty={difficulty} />
       {DIFFICULTY_INFO[difficulty].label}
-    </span>
-  );
-}
-
-export function CategoryPill({ category, className }: { category: Category; className?: string }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold",
-        CATEGORY_STYLE[category].pill,
-        className,
-      )}
-    >
-      {category}
     </span>
   );
 }
