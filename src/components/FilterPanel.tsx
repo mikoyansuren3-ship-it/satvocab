@@ -17,16 +17,14 @@ import { clearFilters, setFilters, useAppState } from "@/lib/store";
 import {
   CATEGORIES,
   CATEGORY_STYLE,
-  LESSONS_BY_TIER,
+  DIFFICULTIES,
+  DIFFICULTY_INFO,
   POS_OPTIONS,
   TIERS,
   TIER_INFO,
   WORDS,
-  bankLabel,
-  tierOf,
-  type Tier,
 } from "@/lib/words";
-import { onRadioGroupKeyDown } from "./bits";
+import { DifficultyBars, onRadioGroupKeyDown } from "./bits";
 
 function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
@@ -39,13 +37,6 @@ export function FilterPanel({ onDone, doneLabel = "Done" }: { onDone?: () => voi
   const { filters: f, progress, saved } = useAppState();
   const counts = useMemo(() => facetCounts(WORDS, f, { progress, saved }), [f, progress, saved]);
   const set = (patch: Partial<Filters>) => setFilters(patch);
-
-  const toggleTier = (tier: Tier) => {
-    const tiers = toggle(f.tiers, tier);
-    // Drop word banks from levels that are no longer selected.
-    set({ tiers, lessons: tiers.length ? f.lessons.filter((l) => tiers.includes(tierOf(l))) : f.lessons });
-  };
-  const visibleTiers = f.tiers.length ? TIERS.filter((t) => f.tiers.includes(t)) : TIERS;
 
   return (
     // No overflow clipping in the sheet, so its sticky footer can stick.
@@ -80,6 +71,23 @@ export function FilterPanel({ onDone, doneLabel = "Done" }: { onDone?: () => voi
         </OptionGroup>
       </Section>
 
+      <Section label="Difficulty" summary={summarize.difficulty(f)}>
+        <OptionGroup label="Difficulty">
+          {DIFFICULTIES.map((level) => (
+            <Option
+              key={level}
+              kind="checkbox"
+              checked={f.difficulty.includes(level)}
+              onSelect={() => set({ difficulty: toggle(f.difficulty, level) })}
+              label={DIFFICULTY_INFO[level].label}
+              hint={DIFFICULTY_INFO[level].blurb}
+              count={counts.difficulty[level]}
+              icon={<DifficultyBars difficulty={level} className="text-ink" />}
+            />
+          ))}
+        </OptionGroup>
+      </Section>
+
       <Section label="Frequency" summary={summarize.tiers(f)}>
         <OptionGroup label="Frequency">
           {TIERS.map((tier) => (
@@ -87,29 +95,13 @@ export function FilterPanel({ onDone, doneLabel = "Done" }: { onDone?: () => voi
               key={tier}
               kind="checkbox"
               checked={f.tiers.includes(tier)}
-              onSelect={() => toggleTier(tier)}
+              onSelect={() => set({ tiers: toggle(f.tiers, tier) })}
               label={TIER_INFO[tier].label}
-              hint={TIER_INFO[tier].banks}
+              hint={TIER_INFO[tier].blurb}
               count={counts.tiers[tier]}
             />
           ))}
         </OptionGroup>
-      </Section>
-
-      <Section label="Word bank" summary={summarize.lessons(f)}>
-        <div className="space-y-1">
-          {visibleTiers.map((tier) => (
-            <BankGroup
-              // Remount when a level becomes the only one shown, so it opens.
-              key={`${tier}-${visibleTiers.length === 1}`}
-              tier={tier}
-              selected={f.lessons}
-              counts={counts.lessons}
-              defaultOpen={visibleTiers.length === 1 || f.lessons.some((l) => tierOf(l) === tier)}
-              onToggle={(lesson) => set({ lessons: toggle(f.lessons, lesson) })}
-            />
-          ))}
-        </div>
       </Section>
 
       <Section label="Category" summary={summarize.categories(f)}>
@@ -244,6 +236,7 @@ function Option({
   hint,
   count,
   swatch,
+  icon,
 }: {
   kind: "checkbox" | "radio";
   checked: boolean;
@@ -252,6 +245,7 @@ function Option({
   hint?: string;
   count?: number;
   swatch?: string;
+  icon?: ReactNode;
 }) {
   return (
     <button
@@ -273,6 +267,7 @@ function Option({
         {checked && (kind === "checkbox" ? <Check className="size-3" strokeWidth={3.5} /> : <span className="size-2 rounded-full bg-white" />)}
       </span>
       {swatch && <span className={cn("size-2 shrink-0 rounded-full", swatch)} aria-hidden />}
+      {icon}
       <span className="min-w-0 flex-1">
         <span className="block truncate">{label}</span>
         {hint && <span className="block truncate text-sm text-muted">{hint}</span>}
@@ -285,76 +280,6 @@ function Option({
         </span>
       )}
     </button>
-  );
-}
-
-function BankGroup({
-  tier,
-  selected,
-  counts,
-  defaultOpen,
-  onToggle,
-}: {
-  tier: Tier;
-  selected: string[];
-  counts: Record<string, number>;
-  defaultOpen: boolean;
-  onToggle: (lesson: string) => void;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const id = useId();
-  const banks = LESSONS_BY_TIER[tier];
-  const picked = banks.filter((l) => selected.includes(l)).length;
-  return (
-    <div>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between gap-3 rounded-xl px-2 py-2 text-left hover:bg-surface-2"
-      >
-        <span className="min-w-0">
-          <span className="block text-[15px] font-semibold">{TIER_INFO[tier].label}</span>
-          <span className="block text-sm text-muted">{TIER_INFO[tier].banks}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-2 text-sm text-muted">
-          {picked > 0 && <span className="font-semibold text-brand-text">{picked} selected</span>}
-          <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} aria-hidden />
-        </span>
-      </button>
-      <div id={id} hidden={!open} className="px-1 pt-1 pb-2">
-        {tier === "low" && (
-          <p className="mb-2 px-1 text-sm text-muted">
-            The source doesn’t split this list into lessons, so these sets of about 30 follow its order of difficulty.
-          </p>
-        )}
-        <div role="group" aria-label={`${TIER_INFO[tier].label} word banks`} className="grid grid-cols-5 gap-1.5">
-          {banks.map((lesson) => {
-            const checked = selected.includes(lesson);
-            const count = counts[lesson] ?? 0;
-            return (
-              <button
-                key={lesson}
-                type="button"
-                role="checkbox"
-                aria-checked={checked}
-                aria-label={`${bankLabel(lesson)}, ${count} words`}
-                onClick={() => onToggle(lesson)}
-                className={cn(
-                  "flex flex-col items-center rounded-lg border py-1.5 text-sm leading-tight font-semibold tabular-nums transition-colors",
-                  checked ? "border-brand bg-brand text-white" : "border-line hover:bg-surface-2",
-                  !checked && count === 0 && "opacity-50",
-                )}
-              >
-                {lesson}
-                <span className={cn("text-[11px] font-medium", checked ? "text-white/85" : "text-muted")}>{count}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
   );
 }
 

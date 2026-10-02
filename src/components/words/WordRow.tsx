@@ -3,8 +3,8 @@
 import { memo } from "react";
 import { cn } from "@/lib/cn";
 import { LEVEL_STYLE, levelOf, type WordProgress } from "@/lib/mastery";
-import { POS_NAME, TIER_INFO, bankLabel, type Word } from "@/lib/words";
-import { CategoryPill, Example, MasteryBadge, MasteryDots, SaveButton } from "../bits";
+import { POS_NAME, TIER_INFO, type Word } from "@/lib/words";
+import { CategoryPill, DifficultyTag, Example, MasteryBadge, MasteryDots, SaveButton } from "../bits";
 
 export const WordRow = memo(function WordRow({
   word,
@@ -51,6 +51,7 @@ export const WordRow = memo(function WordRow({
           <span className="hidden shrink-0 items-center gap-3 sm:flex">
             <MasteryDots level={level} />
             <CategoryPill category={word.category} />
+            <DifficultyTag difficulty={word.difficulty} className="w-[4.5rem] text-sm text-muted" />
           </span>
         </button>
         <SaveButton id={word.id} word={word.word} saved={saved} />
@@ -58,8 +59,9 @@ export const WordRow = memo(function WordRow({
       <div id={detailsId} hidden={!expanded} className="space-y-3 pr-4 pb-4 pl-[2.6rem] sm:pr-14">
         <Example text={word.example} word={word.word} className="text-[15px] leading-relaxed" />
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
+          <DifficultyTag difficulty={word.difficulty} className="rounded-lg bg-surface px-2.5 py-1 font-semibold" />
           <span className="rounded-lg bg-surface px-2.5 py-1 font-semibold">
-            {TIER_INFO[word.tier].label} · {bankLabel(word.lesson)}
+            {TIER_INFO[word.tier].label}
           </span>
           <span>
             {progress

@@ -34,7 +34,7 @@ import {
   type PausedSession,
   type StudyMode,
 } from "@/lib/store";
-import { TIERS, TIER_INFO, WORDS, tierOf, type Tier } from "@/lib/words";
+import { DIFFICULTIES, DIFFICULTY_INFO, TIERS, TIER_INFO, WORDS, type Difficulty, type Tier } from "@/lib/words";
 import { ProgressBar, onRadioGroupKeyDown } from "../bits";
 import { FilterAside, MobileFilterButton } from "../FilterPanel";
 import { Flashcards } from "./Flashcards";
@@ -238,12 +238,9 @@ function Study({ canRestore }: { canRestore: boolean }) {
 
   const levelCounts = LEVELS.map((l) => ({ level: l, n: pool.filter((w) => levelOf(progress[w.id]) === l).length }));
   const tierValue: Tier | "all" | "custom" = filters.tiers.length === 0 ? "all" : filters.tiers.length === 1 ? filters.tiers[0] : "custom";
-  const pickTier = (value: Tier | "all") =>
-    setFilters(
-      value === "all"
-        ? { tiers: [] }
-        : { tiers: [value], lessons: filters.lessons.filter((l) => tierOf(l) === value) },
-    );
+  const pickTier = (value: Tier | "all") => setFilters({ tiers: value === "all" ? [] : [value] });
+  const difficultyValue: Difficulty | "all" | "custom" =
+    filters.difficulty.length === 0 ? "all" : filters.difficulty.length === 1 ? filters.difficulty[0] : "custom";
 
   return (
     <div className="lg:flex lg:items-start lg:gap-6">
@@ -341,7 +338,16 @@ function Study({ canRestore }: { canRestore: boolean }) {
             </div>
           )}
 
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap gap-x-8 gap-y-5">
+            <Segmented
+              label="Difficulty"
+              value={difficultyValue}
+              options={[
+                { value: "all", label: "All" },
+                ...DIFFICULTIES.map((d) => ({ value: d, label: DIFFICULTY_INFO[d].label })),
+              ]}
+              onChange={(v) => setFilters({ difficulty: v === "all" ? [] : [v as Difficulty] })}
+            />
             <Segmented
               label="Frequency"
               value={tierValue}

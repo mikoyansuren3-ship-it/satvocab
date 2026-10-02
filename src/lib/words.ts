@@ -19,13 +19,25 @@ export type Category = (typeof CATEGORIES)[number];
 export type Tier = "top" | "mid" | "low";
 export const TIERS: Tier[] = ["top", "mid", "low"];
 
+/**
+ * How hard a word's SAT meaning is, from published data on which words people know
+ * and the school grade at which students learn each meaning (see data/difficulty.json).
+ */
+export type Difficulty = "easy" | "medium" | "hard";
+export const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
+
+export const DIFFICULTY_INFO: Record<Difficulty, { label: string; blurb: string }> = {
+  easy: { label: "Easy", blurb: "Middle school level" },
+  medium: { label: "Medium", blurb: "High school level" },
+  hard: { label: "Hard", blurb: "College level" },
+};
+
 export interface Word {
   id: string;
   word: string;
   tier: Tier;
-  /** Word bank: "1.4" is Lesson 1.4 (Top), "2.10" Lesson 2.10 (Mid), "3.7" Set 3.7 (Low). */
-  lesson: string;
-  /** Position in study order (High lessons, then Mid, then Low sets). */
+  difficulty: Difficulty;
+  /** Position in study order: easiest first (Easy, then Medium, then Hard, each by score). */
   order: number;
   synonym: string;
   definition: string;
@@ -42,18 +54,23 @@ export function slugify(word: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export function tierOf(lesson: string): Tier {
-  return lesson.startsWith("1.") ? "top" : lesson.startsWith("2.") ? "mid" : "low";
-}
-
-type Row = [word: string, lesson: string, synonym: string, definition: string, pos: string, category: number, example: string];
+type Row = [
+  word: string,
+  tier: number,
+  synonym: string,
+  definition: string,
+  pos: string,
+  category: number,
+  example: string,
+  difficulty: number,
+];
 const raw = data as unknown as { categories: Category[]; rows: Row[] };
 
-export const WORDS: Word[] = raw.rows.map(([word, lesson, synonym, definition, pos, category, example], order) => ({
+export const WORDS: Word[] = raw.rows.map(([word, tier, synonym, definition, pos, category, example, difficulty], order) => ({
   id: slugify(word),
   word,
-  tier: tierOf(lesson),
-  lesson,
+  tier: TIERS[tier] ?? "low",
+  difficulty: DIFFICULTIES[difficulty] ?? "medium",
   order,
   synonym,
   definition,
@@ -63,29 +80,10 @@ export const WORDS: Word[] = raw.rows.map(([word, lesson, synonym, definition, p
 }));
 export const WORD_BY_ID = new Map(WORDS.map((w) => [w.id, w]));
 
-/** Every word bank in study order. */
-export const LESSONS: string[] = Array.from(new Set(WORDS.map((w) => w.lesson)));
-
-export const LESSONS_BY_TIER: Record<Tier, string[]> = {
-  top: LESSONS.filter((l) => tierOf(l) === "top"),
-  mid: LESSONS.filter((l) => tierOf(l) === "mid"),
-  low: LESSONS.filter((l) => tierOf(l) === "low"),
-};
-
-/** "Lesson 1.4" for the source's lessons; "Set 3.7" for the unsorted Low list split into sets. */
-export function bankLabel(lesson: string): string {
-  return `${tierOf(lesson) === "low" ? "Set" : "Lesson"} ${lesson}`;
-}
-
-const range = (tier: Tier) => {
-  const banks = LESSONS_BY_TIER[tier];
-  return banks.length ? `${tier === "low" ? "Sets" : "Lessons"} ${banks[0]}–${banks[banks.length - 1]}` : "";
-};
-
-export const TIER_INFO: Record<Tier, { label: string; short: string; banks: string; blurb: string }> = {
-  top: { label: "High frequency", short: "High", banks: range("top"), blurb: "The most common SAT words" },
-  mid: { label: "Mid frequency", short: "Mid", banks: range("mid"), blurb: "Common academic words" },
-  low: { label: "Low frequency", short: "Low", banks: range("low"), blurb: "Rarer, harder words" },
+export const TIER_INFO: Record<Tier, { label: string; short: string; blurb: string }> = {
+  top: { label: "High frequency", short: "High", blurb: "Most common on SATs" },
+  mid: { label: "Mid frequency", short: "Mid", blurb: "Common on SATs" },
+  low: { label: "Low frequency", short: "Low", blurb: "Less common on SATs" },
 };
 
 export const POS_OPTIONS: { value: Pos; label: string }[] = [

@@ -1,24 +1,25 @@
 import { LEVELS, LEVEL_LABEL, levelOf, type Level, type WordProgress } from "./mastery";
 import {
   CATEGORIES,
-  LESSONS,
+  DIFFICULTIES,
+  DIFFICULTY_INFO,
   POS_OPTIONS,
   TIERS,
   TIER_INFO,
-  bankLabel,
-  tierOf,
   type Category,
+  type Difficulty,
   type Pos,
   type Tier,
   type Word,
 } from "./words";
 
-export type SortKey = "weakest" | "az" | "za" | "lesson" | "missed" | "recent";
+export type SortKey = "weakest" | "easiest" | "hardest" | "az" | "za" | "missed" | "recent";
 export type SavedFilter = "all" | "saved" | "unsaved";
 
 export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "weakest", label: "Weakest first" },
-  { value: "lesson", label: "Lesson order" },
+  { value: "easiest", label: "Easiest first" },
+  { value: "hardest", label: "Hardest first" },
   { value: "az", label: "A to Z" },
   { value: "za", label: "Z to A" },
   { value: "missed", label: "Most missed" },
@@ -33,8 +34,8 @@ export const SAVED_OPTIONS: { value: SavedFilter; label: string }[] = [
 
 export interface Filters {
   mastery: Level[];
+  difficulty: Difficulty[];
   tiers: Tier[];
-  lessons: string[];
   categories: Category[];
   pos: Pos[];
   saved: SavedFilter;
@@ -44,8 +45,8 @@ export interface Filters {
 
 export const DEFAULT_FILTERS: Filters = {
   mastery: [],
+  difficulty: [],
   tiers: [],
-  lessons: [],
   categories: [],
   pos: [],
   saved: "all",
@@ -58,15 +59,15 @@ export interface FilterContext {
   saved: Record<string, true>;
 }
 
-type Facet = "mastery" | "tiers" | "lessons" | "categories" | "pos" | "saved";
+type Facet = "mastery" | "difficulty" | "tiers" | "categories" | "pos" | "saved";
 
 const normalize = (s: string) => s.toLowerCase().replace(/[’']/g, "'").trim();
 
 /** `skip` ignores one facet so its option counts reflect the other filters. */
 export function matches(w: Word, f: Filters, ctx: FilterContext, skip?: Facet): boolean {
   if (skip !== "mastery" && f.mastery.length && !f.mastery.includes(levelOf(ctx.progress[w.id]))) return false;
+  if (skip !== "difficulty" && f.difficulty.length && !f.difficulty.includes(w.difficulty)) return false;
   if (skip !== "tiers" && f.tiers.length && !f.tiers.includes(w.tier)) return false;
-  if (skip !== "lessons" && f.lessons.length && !f.lessons.includes(w.lesson)) return false;
   if (skip !== "categories" && f.categories.length && !f.categories.includes(w.category)) return false;
   if (skip !== "pos" && f.pos.length && !f.pos.includes(w.pos)) return false;
   if (skip !== "saved" && f.saved !== "all") {
@@ -90,6 +91,7 @@ export function filterWords(words: Word[], f: Filters, ctx: FilterContext): Word
 // A fixed locale keeps prerendered and client order identical.
 const collator = new Intl.Collator("en");
 const byWord = (a: Word, b: Word) => collator.compare(a.word, b.word);
+// Study order is difficulty order: easiest first.
 const byOrder = (a: Word, b: Word) => a.order - b.order;
 
 /**
@@ -110,8 +112,11 @@ export function sortWords(list: Word[], sort: SortKey, ctx: FilterContext, query
     case "za":
       sorted.sort((a, b) => byWord(b, a));
       break;
-    case "lesson":
+    case "easiest":
       sorted.sort(byOrder);
+      break;
+    case "hardest":
+      sorted.sort((a, b) => byOrder(b, a));
       break;
     case "missed":
       sorted.sort((a, b) => (p(b)?.wrong ?? 0) - (p(a)?.wrong ?? 0) || accuracy(p(a)) - accuracy(p(b)) || byOrder(a, b));
@@ -121,7 +126,7 @@ export function sortWords(list: Word[], sort: SortKey, ctx: FilterContext, query
       break;
     case "weakest":
       // Ties among studied words: lowest accuracy, then most recently reviewed.
-      // Never-seen words keep study order, so new students start with Lesson 1.1.
+      // Never-seen words keep study order, so new students start with the easiest words.
       sorted.sort(
         (a, b) =>
           weakRank(p(a)) - weakRank(p(b)) ||
@@ -150,8 +155,8 @@ function accuracy(p: WordProgress | undefined): number {
 
 export interface FacetCounts {
   mastery: Record<Level, number>;
+  difficulty: Record<Difficulty, number>;
   tiers: Record<Tier, number>;
-  lessons: Record<string, number>;
   categories: Record<Category, number>;
   pos: Record<Pos, number>;
   saved: Record<SavedFilter, number>;
@@ -160,21 +165,16 @@ export interface FacetCounts {
 export function facetCounts(words: Word[], f: Filters, ctx: FilterContext): FacetCounts {
   const counts: FacetCounts = {
     mastery: Object.fromEntries(LEVELS.map((l) => [l, 0])) as Record<Level, number>,
+    difficulty: Object.fromEntries(DIFFICULTIES.map((d) => [d, 0])) as Record<Difficulty, number>,
     tiers: Object.fromEntries(TIERS.map((t) => [t, 0])) as Record<Tier, number>,
-    lessons: Object.fromEntries(LESSONS.map((l) => [l, 0])),
     categories: Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>,
     pos: Object.fromEntries(POS_OPTIONS.map((o) => [o.value, 0])) as Record<Pos, number>,
     saved: { all: 0, saved: 0, unsaved: 0 },
   };
-  // A level's count is what selecting it would show: picking a level keeps only
-  // that level's selected word banks (or all of its banks if none are selected).
-  const byTier = Object.fromEntries(
-    TIERS.map((t) => [t, { ...f, lessons: f.lessons.filter((l) => tierOf(l) === t) }]),
-  ) as Record<Tier, Filters>;
   for (const w of words) {
     if (matches(w, f, ctx, "mastery")) counts.mastery[levelOf(ctx.progress[w.id])]++;
-    if (matches(w, byTier[w.tier], ctx, "tiers")) counts.tiers[w.tier]++;
-    if (matches(w, f, ctx, "lessons")) counts.lessons[w.lesson]++;
+    if (matches(w, f, ctx, "difficulty")) counts.difficulty[w.difficulty]++;
+    if (matches(w, f, ctx, "tiers")) counts.tiers[w.tier]++;
     if (matches(w, f, ctx, "categories")) counts.categories[w.category]++;
     if (matches(w, f, ctx, "pos")) counts.pos[w.pos]++;
     if (matches(w, f, ctx, "saved")) {
@@ -189,8 +189,8 @@ export function facetCounts(words: Word[], f: Filters, ctx: FilterContext): Face
 export function activeFilterCount(f: Filters): number {
   return (
     (f.mastery.length ? 1 : 0) +
+    (f.difficulty.length ? 1 : 0) +
     (f.tiers.length ? 1 : 0) +
-    (f.lessons.length ? 1 : 0) +
     (f.categories.length ? 1 : 0) +
     (f.pos.length ? 1 : 0) +
     (f.saved !== "all" ? 1 : 0)
@@ -211,29 +211,29 @@ const posLabel = (v: string) => POS_OPTIONS.find((o) => o.value === v)?.label ??
 
 export const summarize = {
   mastery: (f: Filters) => listSummary(f.mastery, "All words", "selected", (v) => LEVEL_LABEL[v as Level]),
+  difficulty: (f: Filters) =>
+    listSummary(sortDifficulties(f.difficulty), "All levels", "selected", (v) => DIFFICULTY_INFO[v as Difficulty].label),
   tiers: (f: Filters) => listSummary(sortTiers(f.tiers), "All frequencies", "selected", (v) => TIER_INFO[v as Tier].label),
-  lessons: (f: Filters) => listSummary(sortLessons(f.lessons), "All banks", "banks", bankLabel),
   categories: (f: Filters) => listSummary(f.categories, "All categories", "categories"),
   pos: (f: Filters) => listSummary(f.pos, "All", "selected", posLabel),
   saved: (f: Filters) => SAVED_OPTIONS.find((o) => o.value === f.saved)?.label ?? "Everything",
   sort: (f: Filters) => SORT_OPTIONS.find((o) => o.value === f.sort)?.label ?? "",
 };
 
-export function sortLessons(lessons: string[]): string[] {
-  return [...lessons].sort((a, b) => LESSONS.indexOf(a) - LESSONS.indexOf(b));
-}
-
 function sortTiers(tiers: Tier[]): Tier[] {
   return [...tiers].sort((a, b) => TIERS.indexOf(a) - TIERS.indexOf(b));
 }
 
-/** Short human description of the active filters, e.g. "Learning · Lesson 1.3". */
+function sortDifficulties(levels: Difficulty[]): Difficulty[] {
+  return [...levels].sort((a, b) => DIFFICULTIES.indexOf(a) - DIFFICULTIES.indexOf(b));
+}
+
+/** Short human description of the active filters, e.g. "Learning · Hard". */
 export function describeFilters(f: Filters): string {
   const parts: string[] = [];
   if (f.mastery.length) parts.push(f.mastery.map((l) => LEVEL_LABEL[l]).join(" or "));
+  if (f.difficulty.length) parts.push(sortDifficulties(f.difficulty).map((d) => DIFFICULTY_INFO[d].label).join(" or "));
   if (f.tiers.length) parts.push(sortTiers(f.tiers).map((t) => TIER_INFO[t].label).join(" or "));
-  if (f.lessons.length)
-    parts.push(f.lessons.length <= 3 ? sortLessons(f.lessons).map(bankLabel).join(", ") : `${f.lessons.length} word banks`);
   if (f.categories.length) parts.push(f.categories.length <= 2 ? f.categories.join(", ") : `${f.categories.length} categories`);
   if (f.pos.length) parts.push(f.pos.map((v) => posLabel(v).toLowerCase()).join(" or "));
   if (f.saved === "saved") parts.push("saved");

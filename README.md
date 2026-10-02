@@ -1,21 +1,45 @@
 # SAT Vocab
 
-A study site for the [sesamewords](https://sites.google.com/site/sesamewords/home) SAT vocabulary lists: **3,661 words** in three frequency levels, with flashcards, two kinds of multiple-choice quiz, and a searchable, filterable word list that tracks how well you know each word.
+A study site for the [sesamewords](https://sites.google.com/site/sesamewords/home) SAT vocabulary lists: **3,661 words**, each graded Easy, Medium or Hard and grouped into three frequency levels, with flashcards, two kinds of multiple-choice quiz, and a searchable, filterable word list that tracks how well you know each word.
 
-| Frequency | Words | Word banks |
+| Frequency | Words |
+| --- | ---: |
+| High frequency | 449 |
+| Mid frequency | 1,349 |
+| Low frequency | 1,863 |
+
+The source pages list 4,491 entries. The Low list repeats 828 High and Mid words, and two words appear twice, so each word is kept once, at its most frequent level.
+
+## Difficulty
+
+Each word is graded for its SAT meaning. Difficulty is separate from frequency, which only says how often a word appeared on past SATs: plenty of High-frequency words are hard (*laconic*, *obsequious*) and plenty of Low-frequency words are easy (*unimportant*, *agony*).
+
+| Difficulty | Words | Means |
 | --- | ---: | --- |
-| High frequency | 449 | Lessons 1.1–1.15 |
-| Mid frequency | 1,349 | Lessons 2.1–2.45 |
-| Low frequency | 1,863 | Sets 3.1–3.62 |
+| Easy | 820 | Middle school level: most students know the meaning by about 8th grade |
+| Medium | 1,493 | High school level: usually learned in grades 9–12 |
+| Hard | 1,348 | College level: most high school seniors don't know the meaning yet |
 
-The source pages list 4,491 entries. The Low list repeats 828 High and Mid words, and two words appear twice, so each word is kept once, at its most frequent level. The Low list isn't split into lessons on the source site, so its words are grouped into sets of about 30 in the site's order of difficulty.
+The levels come from published research data, combined into one score per word:
+
+- **How many people know the word** (40% of the score): the [word prevalence norms](https://osf.io/g4xrt/) of Brysbaert et al. (2019), which asked about 220,000 people whether they know each of 62,000 English words. The score uses 18–23-year-olds and all ages.
+- **The grade at which students know the SAT meaning** (25%): the [Living Word Vocabulary](https://osf.io/kz2px/), which tested 44,000 word meanings on students in grades 4–16 (Dale & O'Rourke, 1981; Brysbaert & Biemiller, 2017). Each word is matched to the tested meaning its SAT definition uses, so *founder* is graded as "to sink," not "a person who starts something."
+- **A rating of the SAT meaning** (20%): a 1–5 rating of how hard the meaning is for a high school junior, made by Claude without seeing the data.
+- **Age of acquisition** (10%): when adults remember learning the word (Kuperman et al., 2012).
+- **How common the word is** (5%): its frequency in English today ([wordfreq](https://github.com/rspeer/wordfreq)), counting inflections such as *disgruntled* for *disgruntle*.
+
+When the SAT meaning is a less common sense of a familiar word (*founder*, *fawn*, *oblique*), the word-level measures describe the wrong sense, so the tested grade (45%) and the rating (40%) carry the score instead.
+
+The cutoffs give each level the same share of words as the Living Word Vocabulary grade bands: grade 8 or earlier, grades 10–12, and grade 13 or later. The 407 words whose measures disagreed, or that had little data, were then reviewed again with all the evidence, and 45 changed level: mostly words that are rarer than they are hard (*faddish*, *time-worn*) and words a dated grade test overrated (*nocturnal*, *plagiarize*). In a blind check, 150 random words graded without the data matched their level 74% of the time and were never two levels apart.
+
+`data/difficulty.json` lists every word from easiest to hardest with its `level` and the evidence: `score` (0 is the easiest in the list, 100 the hardest), `known` and `knownAll` (percent of 18–23-year-olds and of all ages who know the word), `grade` and `meaning` (the matched Living Word Vocabulary meaning), `aoa`, `zipf`, `rating`, and `secondarySense`. Where the second review changed a level, `computed` is the level from the score and `review` says why. To move a word, change its `level` and run `node scripts/build-words.mjs`.
 
 ## Features
 
 - **Flashcards**: flip each card, then mark it "Got it" or "Still learning". You can show the word or the definition on the front.
 - **Quizzes**: *word → definition* (one word, four definitions), *definition → word* (one definition, four words), or both mixed together. Wrong answers are drawn from words with the same part of speech so they stay plausible.
-- **All words**: search words and definitions; filter by mastery, frequency, word bank, category, part of speech and saved words; sort by weakest first, lesson order, A to Z, most missed or recently studied. "Study these" opens a study session set to the current filters.
-- **Progress**: mastery overall and by frequency, word bank and category, day streak, accuracy, most-missed words, recent sessions, and export, import or reset of your progress.
+- **All words**: search words and definitions; filter by mastery, difficulty, frequency, category, part of speech and saved words; sort by weakest first, easiest or hardest first, A to Z, most missed or recently studied. Words you haven't studied yet come up easiest first. "Study these" opens a study session set to the current filters.
+- **Progress**: mastery overall and by difficulty, frequency and category, day streak, accuracy, most-missed words, recent sessions, and export, import or reset of your progress.
 - **Mastery**: each right answer moves a word up one step and each miss moves it down two. Learning is 0 to 1 steps, Almost there is 2 to 3, and Mastered is 4 or more.
 
 ## Accounts
@@ -38,7 +62,8 @@ There's no PIN reset, because accounts have no email address.
 
 - `data/words.base.json`: the three word lists scraped from the source site and deduplicated, with the synonym and definition verbatim.
 - `data/enrichment.json`: generated part of speech, category and example sentence for each word. Each batch was checked by a second pass.
-- `scripts/build-words.mjs`: merges the two into a compact `src/data/words.json`, which the app imports. Run `node scripts/build-words.mjs` after editing either file.
+- `data/difficulty.json`: each word's difficulty level and the evidence behind it (see [Difficulty](#difficulty)).
+- `scripts/build-words.mjs`: merges the three into a compact `src/data/words.json`, ordered easiest first, which the app imports. Run `node scripts/build-words.mjs` after editing any of them.
 
 ## Development
 

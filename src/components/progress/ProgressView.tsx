@@ -23,17 +23,18 @@ import {
 import {
   CATEGORIES,
   CATEGORY_STYLE,
-  LESSONS_BY_TIER,
+  DIFFICULTIES,
+  DIFFICULTY_INFO,
   TIERS,
   TIER_INFO,
   WORDS,
   WORD_BY_ID,
-  bankLabel,
   type Category,
+  type Difficulty,
   type Tier,
   type Word,
 } from "@/lib/words";
-import { onRadioGroupKeyDown } from "../bits";
+import { DifficultyBars } from "../bits";
 import { MODE_LABEL } from "../study/types";
 
 type Counts = Record<Level, number>;
@@ -77,6 +78,7 @@ interface Row {
   label: string;
   counts: Counts;
   swatch?: string;
+  icon?: React.ReactNode;
 }
 
 export function ProgressView() {
@@ -84,17 +86,21 @@ export function ProgressView() {
   const hydrated = useHydrated();
   const today = useToday();
   const router = useRouter();
-  const [bankTier, setBankTier] = useState<Tier>("top");
 
   const overall = useMemo(() => countLevels(WORDS, progress), [progress]);
+  const byDifficulty = useMemo<Row[]>(
+    () =>
+      DIFFICULTIES.map((d) => ({
+        key: d,
+        label: DIFFICULTY_INFO[d].label,
+        icon: <DifficultyBars difficulty={d} />,
+        counts: countLevels(WORDS.filter((w) => w.difficulty === d), progress),
+      })),
+    [progress],
+  );
   const byTier = useMemo<Row[]>(
     () => TIERS.map((t) => ({ key: t, label: TIER_INFO[t].label, counts: countLevels(WORDS.filter((w) => w.tier === t), progress) })),
     [progress],
-  );
-  const byLesson = useMemo<Row[]>(
-    () =>
-      LESSONS_BY_TIER[bankTier].map((l) => ({ key: l, label: bankLabel(l), counts: countLevels(WORDS.filter((w) => w.lesson === l), progress) })),
-    [progress, bankTier],
   );
   const byCategory = useMemo<Row[]>(
     () =>
@@ -168,13 +174,22 @@ export function ProgressView() {
       </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Breakdown
-          title="By frequency"
-          firstColumn="Frequency"
-          rows={byTier}
-          onSelect={(key) => showWords({ tiers: [key as Tier] })}
-          selectHint="Show these words"
-        />
+        <div className="space-y-5">
+          <Breakdown
+            title="By difficulty"
+            firstColumn="Difficulty"
+            rows={byDifficulty}
+            onSelect={(key) => showWords({ difficulty: [key as Difficulty] })}
+            selectHint="Show these words"
+          />
+          <Breakdown
+            title="By frequency"
+            firstColumn="Frequency"
+            rows={byTier}
+            onSelect={(key) => showWords({ tiers: [key as Tier] })}
+            selectHint="Show these words"
+          />
+        </div>
         <Breakdown
           title="By category"
           firstColumn="Category"
@@ -183,38 +198,6 @@ export function ProgressView() {
           selectHint="Show this category's words"
         />
       </div>
-
-      <Breakdown
-        title="By word bank"
-        firstColumn="Word bank"
-        rows={byLesson}
-        onSelect={(key) => showWords({ lessons: [key] })}
-        selectHint="Show this word bank"
-        columns
-        controls={
-          <div role="radiogroup" aria-label="Frequency" onKeyDown={onRadioGroupKeyDown} className="inline-flex rounded-full bg-surface-2 p-1">
-            {TIERS.map((t) => {
-              const selected = bankTier === t;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  tabIndex={selected ? 0 : -1}
-                  onClick={() => setBankTier(t)}
-                  className={cn(
-                    "rounded-full px-3 py-1 text-sm font-semibold whitespace-nowrap transition-colors",
-                    selected ? "bg-surface text-ink shadow-sm dark:bg-brand-soft dark:text-brand-text dark:ring-1 dark:ring-brand" : "text-muted hover:text-ink",
-                  )}
-                >
-                  {TIER_INFO[t].short}
-                </button>
-              );
-            })}
-          </div>
-        }
-      />
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-3xl border border-line bg-surface p-5 sm:p-6" aria-labelledby="missed-title">
@@ -344,16 +327,12 @@ function Breakdown({
   rows,
   onSelect,
   selectHint,
-  controls,
-  columns = false,
 }: {
   title: string;
   firstColumn: string;
   rows: Row[];
   onSelect: (key: string) => void;
   selectHint: string;
-  controls?: React.ReactNode;
-  columns?: boolean;
 }) {
   const [table, setTable] = useState(false);
   return (
@@ -361,7 +340,6 @@ function Breakdown({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-bold">{title}</h2>
         <div className="flex items-center gap-2">
-          {controls}
           <button
             type="button"
             aria-pressed={table}
@@ -405,7 +383,7 @@ function Breakdown({
           </table>
         </div>
       ) : (
-        <ul className={cn("mt-3 gap-x-6 gap-y-1", columns ? "grid lg:grid-cols-2" : "space-y-1")}>
+        <ul className="mt-3 space-y-1">
           {rows.map((r) => {
             const total = LEVELS.reduce((sum, l) => sum + r.counts[l], 0);
             return (
@@ -419,6 +397,7 @@ function Breakdown({
                 >
                   <span className="flex min-w-0 items-center gap-2 text-[15px] font-medium">
                     {r.swatch && <span className={cn("size-2 shrink-0 rounded-full", r.swatch)} aria-hidden />}
+                    {r.icon}
                     <span className="truncate">{r.label}</span>
                   </span>
                   <span className="col-span-2 row-start-2 block sm:col-span-1 sm:col-start-2 sm:row-start-1">

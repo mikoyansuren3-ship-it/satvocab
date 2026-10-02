@@ -5,8 +5,8 @@ import { Check, Pause, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { recordAnswer, useAppState } from "@/lib/store";
 import { fmt } from "@/lib/format";
-import { TIER_INFO, WORD_BY_ID, bankLabel, maskHeadword, type Word } from "@/lib/words";
-import { CategoryPill, Example, ProgressBar, SaveButton } from "../bits";
+import { TIER_INFO, WORD_BY_ID, maskHeadword, type Word } from "@/lib/words";
+import { CategoryPill, DifficultyTag, Example, ProgressBar, SaveButton } from "../bits";
 import { ignoreKey, type SessionProgress, type SessionResult } from "./types";
 
 export function Flashcards({
@@ -150,8 +150,9 @@ export function Flashcards({
             <Example text={word.example} word={word.word} className="mt-6 text-center leading-relaxed" />
             <div className="mt-auto flex flex-wrap items-center justify-center gap-2 pt-6">
               <CategoryPill category={word.category} />
+              <DifficultyTag difficulty={word.difficulty} className="rounded-lg bg-surface-2 px-2.5 py-1 text-xs font-semibold text-muted" />
               <span className="rounded-lg bg-surface-2 px-2.5 py-1 text-xs font-semibold text-muted">
-                {TIER_INFO[word.tier].short} · {bankLabel(word.lesson)}
+                {TIER_INFO[word.tier].label}
               </span>
             </div>
           </Face>

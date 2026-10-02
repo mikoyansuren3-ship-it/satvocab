@@ -5,7 +5,14 @@ import { Bookmark } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { LEVEL_LABEL, LEVEL_STYLE, type Level } from "@/lib/mastery";
 import { toggleSaved } from "@/lib/store";
-import { CATEGORY_STYLE, splitExample, type Category } from "@/lib/words";
+import {
+  CATEGORY_STYLE,
+  DIFFICULTIES,
+  DIFFICULTY_INFO,
+  splitExample,
+  type Category,
+  type Difficulty,
+} from "@/lib/words";
 
 export function MasteryBadge({ level, className }: { level: Level; className?: string }) {
   return (
@@ -32,6 +39,36 @@ export function MasteryDots({ level }: { level: Level }) {
           className={cn("size-1.5 rounded-full", i < FILLED[level] ? LEVEL_STYLE[level].dot : "bg-stone-300 dark:bg-stone-700")}
         />
       ))}
+    </span>
+  );
+}
+
+/** One to three filled bars, like a signal meter: easy, medium, hard. Decorative; pair it with the label. */
+export function DifficultyBars({ difficulty, className }: { difficulty: Difficulty; className?: string }) {
+  const filled = DIFFICULTIES.indexOf(difficulty) + 1;
+  return (
+    <svg viewBox="0 0 14 12" className={cn("h-3 w-3.5 shrink-0", className)} aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <rect
+          key={i}
+          x={i * 5}
+          y={8 - i * 4}
+          width="4"
+          height={4 + i * 4}
+          rx="1"
+          className={i < filled ? "fill-current" : "fill-stone-300 dark:fill-stone-700"}
+        />
+      ))}
+    </svg>
+  );
+}
+
+/** Difficulty level with its bars, e.g. "▂▄▆ Hard". */
+export function DifficultyTag({ difficulty, className }: { difficulty: Difficulty; className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap", className)}>
+      <DifficultyBars difficulty={difficulty} />
+      {DIFFICULTY_INFO[difficulty].label}
     </span>
   );
 }

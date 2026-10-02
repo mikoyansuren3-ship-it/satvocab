@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { DEFAULT_FILTERS, SAVED_OPTIONS, SORT_OPTIONS, type Filters } from "./filters";
 import { LEVELS, MAX_BOX, nextProgress, type WordProgress } from "./mastery";
-import { CATEGORIES, LESSONS, POS_OPTIONS, TIERS, WORD_BY_ID } from "./words";
+import { CATEGORIES, DIFFICULTIES, POS_OPTIONS, TIERS, WORD_BY_ID } from "./words";
 
 export type StudyMode = "flashcards" | "quiz-word" | "quiz-def" | "quiz-mixed";
 
@@ -144,15 +144,16 @@ export function sanitize(input: unknown): AppState {
   const f = isObject(input.filters) ? input.filters : {};
   const filters: Filters = {
     mastery: pick(LEVELS, f.mastery),
+    difficulty: pick(DIFFICULTIES, f.difficulty),
     tiers: pick(TIERS, f.tiers),
-    lessons: pick(LESSONS, f.lessons),
     categories: pick(CATEGORIES, f.categories),
     pos: pick(
       POS_OPTIONS.map((o) => o.value),
       f.pos,
     ),
     saved: SAVED_OPTIONS.some((o) => o.value === f.saved) ? (f.saved as Filters["saved"]) : "all",
-    sort: SORT_OPTIONS.some((o) => o.value === f.sort) ? (f.sort as Filters["sort"]) : "weakest",
+    // "lesson" was the old lesson-order sort; difficulty order replaced it.
+    sort: f.sort === "lesson" ? "easiest" : SORT_OPTIONS.some((o) => o.value === f.sort) ? (f.sort as Filters["sort"]) : "weakest",
     query: typeof f.query === "string" ? f.query.slice(0, 100) : "",
   };
 
